@@ -83,9 +83,43 @@ function CopyText.Toggle(frame)
   if IsOn(frame) then CopyText.End("menu") else CopyText.Begin(frame) end
 end
 
+-- Toast: a small label centred in the chat window, shown for a moment after each copy.
+local TOAST_SECS = 1.5
+
+local function GetToast(frame)
+  if frame.vcfCopyToast then return frame.vcfCopyToast end
+  local toast = CreateFrame("Frame", nil, frame)
+  toast:SetFrameStrata("TOOLTIP")
+  toast:SetPoint("CENTER", frame, "CENTER", 0, 0)
+  toast:SetSize(220, 28)
+  toast:EnableMouse(false)
+  local bg = toast:CreateTexture(nil, "BACKGROUND")
+  bg:SetAllPoints(toast)
+  bg:SetColorTexture(0, 0, 0, 0.75)
+  local text = toast:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  text:SetPoint("CENTER")
+  toast.text = text
+  toast:Hide()
+  frame.vcfCopyToast = toast
+  return toast
+end
+
+local function ShowToast(frame, msg)
+  local toast = GetToast(frame)
+  toast.text:SetText(msg)
+  toast:SetWidth(math.max(140, toast.text:GetStringWidth() + 24))
+  toast:SetAlpha(1)
+  toast:Show()
+  if toast.hideTimer then toast.hideTimer:Cancel() end
+  toast.hideTimer = C_Timer.NewTimer(TOAST_SECS, function()
+    UIFrameFadeOut(toast, 0.4, 1, 0)
+    C_Timer.After(0.45, function() toast:Hide() end)
+  end)
+end
+
 local function OnCopied(frame, text, numCopied)
   Touch()
-  Util.Print("copied %d characters", numCopied or #text)
+  ShowToast(frame, string.format("copied to clipboard (%d chars)", numCopied or #text))
 end
 
 function CopyText.Init()
