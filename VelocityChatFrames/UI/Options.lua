@@ -113,6 +113,20 @@ function Options.Create()
   lines:Add(Check(lines, "LevelColorByDifficulty", "Colour the level by difficulty", "The level number takes the quest-difficulty colour relative to you (grey, green, yellow, orange, red), slightly desaturated."), 26)
   lines:Finish()
 
+  local ch = Section("Hide chat buttons")
+  local first = true
+  for _, item in ipairs(NS.Chrome.ITEMS) do
+    ch:Add(Check(ch, item.key, item.label, item.tip), 26, first and -10 or nil)
+    first = false
+  end
+  ch:Finish()
+
+  local eb = Section("Edit box")
+  eb:Add(Check(eb, "EditBoxFloat", "Float the edit box at a fixed screen position", "The typing box stays where you put it instead of jumping under whichever window's tab is selected."), 26, -10)
+  eb:Add(Check(eb, "EditBoxLocked", "Lock position", "Unticked: drag the edit box with the left mouse button (open it with Enter first). Tick again to lock."), 26)
+  eb:Add(Check(eb, "EditBoxHideWhenIdle", "Hide the edit box when not typing", "The box is invisible and ignores the mouse until you press Enter."), 26)
+  eb:Finish()
+
   local st = Section("Sticky channels")
   local note = st:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"); note:SetWidth(BOX_W - 2 * PAD - 8); note:SetJustifyH("LEFT")
   note:SetText("A sticky channel stays selected in the edit box after you send to it, so the next Enter talks to the same place.")

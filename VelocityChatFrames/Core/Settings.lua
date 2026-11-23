@@ -23,6 +23,19 @@ Settings.DEFAULTS = {
   ShortChannelTags = true,
   ShowLevelInName = true,
   LevelColorByDifficulty = true,
+
+  -- Chrome (03_Behaviour)
+  HideMenuButton = true,
+  HideSocialButton = true,
+  HideChannelButton = true,
+  HideVoiceButtons = true,
+  HideScrollButtons = true,
+
+  -- Edit box
+  EditBoxFloat = true,
+  EditBoxLocked = true,
+  EditBoxHideWhenIdle = true,
+  EditBoxX = nil, EditBoxY = nil, EditBoxW = nil,
 }
 
 -- Listeners: key -> { fn, fn, ... }. "*" receives every change.

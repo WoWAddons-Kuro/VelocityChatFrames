@@ -31,9 +31,15 @@ local function ApplyTag(chatType, tag)
   local stock = stockFormats[chatType] or _G[key]
   if type(stock) ~= "string" then return end
   stockFormats[chatType] = stock
-  -- Replace the first [...] in the stock string; if there is none, leave it alone.
+  -- Two stock shapes:
+  --   "|Hchannel:GUILD|h[Guild]|h %s:\32"   -> swap the bracket text, keep the channel link
+  --   "%s says:\32" / "%s yells:\32" / "%s whispers:\32" / "To %s:\32"  -> no brackets; rebuild as "[S] %s:\32"
   local replaced, n = stock:gsub("%[.-%]", "[" .. tag .. "]", 1)
-  if n == 1 then _G[key] = replaced end
+  if n == 1 then
+    _G[key] = replaced
+  else
+    _G[key] = "[" .. tag .. "] %s:\32"
+  end
 end
 
 function LineFormat.ApplyTags()
@@ -112,6 +118,12 @@ function LineFormat.Init()
     Util.WarnOnce("sendername", "ChatFrameUtil.AddSenderNameFilter not available; [level:Name] disabled")
   end
   LineFormat.ApplyAll()
+  -- Global strings and the showTimestamps setting can be re-applied by stock code after login;
+  -- re-assert ours on entering world and after settings load.
+  local f = CreateFrame("Frame")
+  f:RegisterEvent("PLAYER_ENTERING_WORLD")
+  f:RegisterEvent("SETTINGS_LOADED")
+  f:SetScript("OnEvent", function() LineFormat.ApplyAll() end)
 end
 
 for _, key in ipairs({ "Enabled", "ShortChannelTags", "Timestamps", "TimestampFormat" }) do

@@ -24,6 +24,8 @@ Core\Sticky.lua
 Core\Fading.lua
 Core\PlayerData.lua
 Core\LineFormat.lua
+Core\Chrome.lua
+Core\EditBox.lua
 
 UI\Options.lua
 

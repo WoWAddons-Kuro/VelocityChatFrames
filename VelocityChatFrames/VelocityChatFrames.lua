@@ -30,6 +30,8 @@ local function OnLogin()
   NS.Fading.Init()
   NS.Sticky.Init()
   NS.LineFormat.Init()
+  NS.Chrome.Init()
+  NS.EditBox.Init()
   NS.Options.Create()
 
   SLASH_VELOCITYCHATFRAMES1 = "/vcf"
