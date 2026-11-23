@@ -15,6 +15,8 @@ end
 local function SlashHandler(msg)
   msg = (msg or ""):lower():match("^%s*(.-)%s*$")
   if msg == "status" then Status()
+  elseif msg:match("^copy") then
+    NS.CopyText.SlashToggle(msg:match("^copy%s*(%d*)"))
   elseif msg == "on" or msg == "off" then
     NS.Settings.Get().Enabled = (msg == "on"); NS.OnSettingChanged("Enabled"); Util.Print("enabled=%s", msg)
   else
@@ -32,6 +34,7 @@ local function OnLogin()
   NS.LineFormat.Init()
   NS.Chrome.Init()
   NS.EditBox.Init()
+  NS.CopyText.Init()
   NS.Options.Create()
 
   SLASH_VELOCITYCHATFRAMES1 = "/vcf"
