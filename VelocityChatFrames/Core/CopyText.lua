@@ -67,11 +67,10 @@ function CopyText.Begin(frame)
   frame:EnableMouse(true)
   if frame.SetMouseClickEnabled then frame:SetMouseClickEnabled(true) end
   frame:SetFading(false)
-  HoldFocus()
   Touch()
   CancelTimer()
   idleTimer = C_Timer.NewTimer(CopyText.SELECTION_IDLE_SECS + 0.1, OnIdleTick)
-  ShowToast(frame, string.format("selection on: drag, then Ctrl+C. Esc or %ds idle ends it", CopyText.SELECTION_IDLE_SECS))
+  ShowToast(frame, string.format("selection on: drag to select. Ends after %ds idle", CopyText.SELECTION_IDLE_SECS))
 end
 
 function CopyText.End(reason)
@@ -79,7 +78,6 @@ function CopyText.End(reason)
   local frame = activeFrame
   activeFrame = nil
   if not frame then return end
-  ReleaseFocus()
   frame:SetTextCopyable(false)
   local rec = Windows.Get(frame)
   if NS.Fading then NS.Fading.ApplyRest(rec or { frame = frame, isCombatLog = false }) end
@@ -128,53 +126,92 @@ end
 -- Clipboard ---------------------------------------------------------------------------------
 -- CopyToClipboard() is a protected API: addons cannot call it, and because our SetTextCopyable
 -- call taints the frame, the stock OnPostMouseUp path is forbidden too (ADDON_ACTION_FORBIDDEN).
--- The only clipboard route open to addons is an EditBox with focus + Ctrl+C. So for the whole
--- selection session an invisible EditBox holds keyboard focus; each drag release puts the
--- selected text in it and highlights it, so Ctrl+C at any moment copies the last selection.
--- While the session is on, keys go to that box (you cannot move); Escape ends the session.
-local VCF_CopyEditBox
+-- The only clipboard route open to addons is an EditBox with focus + the client's own Ctrl+C;
+-- no button can write the clipboard. So each drag release opens a small review window showing
+-- exactly what was selected, already highlighted and focused: Ctrl+C copies it. "Select all"
+-- re-highlights if you clicked around; Escape or Close dismisses it.
+local VCF_CopyWindow
 
-local function GetCopyBox()
-  if VCF_CopyEditBox then return VCF_CopyEditBox end
-  local box = CreateFrame("EditBox", "VelocityChatFramesCopyBox", UIParent)
-  box:SetSize(1, 1)
-  box:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", -10, -10)   -- off screen
-  box:SetAutoFocus(false)
+local function GetCopyWindow()
+  if VCF_CopyWindow then return VCF_CopyWindow end
+  local win = CreateFrame("Frame", "VelocityChatFramesCopyWindow", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  win:SetSize(560, 240)
+  win:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+  win:SetFrameStrata("DIALOG")
+  win:SetMovable(true); win:EnableMouse(true); win:SetClampedToScreen(true)
+  win:RegisterForDrag("LeftButton")
+  win:SetScript("OnDragStart", win.StartMoving)
+  win:SetScript("OnDragStop", win.StopMovingOrSizing)
+  if win.SetBackdrop then
+    win:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 14, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+    win:SetBackdropColor(0, 0, 0, 0.9); win:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+  end
+
+  local title = win:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("TOPLEFT", 12, -10)
+  title:SetText("Selected text")
+  win.title = title
+
+  local hint = win:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  hint:SetPoint("LEFT", title, "RIGHT", 10, 0)
+  hint:SetText("|cffaaaaaapress Ctrl+C to copy, Esc to close|r")
+
+  local scroll = CreateFrame("ScrollFrame", "VelocityChatFramesCopyWindowScroll", win, "UIPanelScrollFrameTemplate")
+  scroll:SetPoint("TOPLEFT", 12, -32)
+  scroll:SetPoint("BOTTOMRIGHT", -30, 40)
+
+  local box = CreateFrame("EditBox", "VelocityChatFramesCopyWindowEditBox", scroll)
   box:SetMultiLine(true)
+  box:SetAutoFocus(false)
   box:SetFontObject(ChatFontNormal)
-  box:SetAlpha(0)
-  box:EnableMouse(false)
-  box:SetScript("OnEscapePressed", function() CopyText.End("escape") end)
-  -- Something else took focus (chat Enter, a dialog): the session is over.
-  box:SetScript("OnEditFocusLost", function(self) self:SetText(""); if activeFrame then CopyText.End("focus") end end)
-  -- Ctrl+C in a focused EditBox is handled by the client; nothing to do here.
-  VCF_CopyEditBox = box
-  return box
+  box:SetWidth(scroll:GetWidth() > 0 and scroll:GetWidth() or 500)
+  box:SetScript("OnEscapePressed", function() win:Hide() end)
+  box:SetScript("OnTextChanged", function(self, userInput) if userInput then self:SetText(self.vcfText or "") end end) -- read-only
+  scroll:SetScrollChild(box)
+  scroll:SetScript("OnSizeChanged", function(self, w) box:SetWidth(w) end)
+  win.box = box
+
+  local function SelectAll()
+    box:SetFocus()
+    box:HighlightText()
+    box:SetCursorPosition(0)
+  end
+
+  local selectAll = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
+  selectAll:SetSize(100, 22); selectAll:SetText("Select all")
+  selectAll:SetPoint("BOTTOMLEFT", 12, 10)
+  selectAll:SetScript("OnClick", SelectAll)
+
+  local close = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
+  close:SetSize(80, 22); close:SetText(CLOSE or "Close")
+  close:SetPoint("BOTTOMRIGHT", -12, 10)
+  close:SetScript("OnClick", function() win:Hide() end)
+
+  local count = win:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  count:SetPoint("LEFT", selectAll, "RIGHT", 10, 0)
+  win.count = count
+
+  win:SetScript("OnShow", function() C_Timer.After(0, SelectAll) end)
+  win:SetScript("OnHide", function() box:ClearFocus() end)
+  win.SelectAll = SelectAll
+  win:Hide()
+  tinsert(UISpecialFrames, "VelocityChatFramesCopyWindow")   -- Esc closes it even without focus
+  VCF_CopyWindow = win
+  return win
 end
 
-local function HoldFocus()
-  local box = GetCopyBox()
-  box:SetText("")
-  box:Show()
-  box:SetFocus()
-end
-
-local function ReleaseFocus()
-  if not VCF_CopyEditBox then return end
-  local box = VCF_CopyEditBox
-  box:SetScript("OnEditFocusLost", nil)       -- do not re-enter End from the ClearFocus below
-  box:ClearFocus()
-  box:SetText("")
-  box:SetScript("OnEditFocusLost", function(self) self:SetText(""); if activeFrame then CopyText.End("focus") end end)
+local function ShowCopyWindow(frame, text)
+  local win = GetCopyWindow()
+  win.box.vcfText = text
+  win.box:SetText(text)
+  win.count:SetText(string.format("%d characters, %d lines", #text, select(2, text:gsub("\n", "")) + 1))
+  win.title:SetText(string.format("Selected text from %s", frame.name or frame:GetName()))
+  if win:IsShown() then win.SelectAll() else win:Show() end
+  Touch()
 end
 
 local function StageForClipboard(frame, text)
-  local box = GetCopyBox()
-  box:SetText(text)
-  if not box:HasFocus() then box:SetFocus() end
-  box:HighlightText()
-  Touch()
-  ShowToast(frame, string.format("%d chars selected - Ctrl+C copies", #text))
+  ShowCopyWindow(frame, text)
 end
 
 -- Replace the stock mouse-up (which calls the protected CopyToClipboard) for the active frame:
