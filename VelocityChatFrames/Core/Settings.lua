@@ -1,0 +1,50 @@
+-- Velocity Chat Frames: saved settings (account-wide, VelocityChatFramesDB.settings) and the
+-- change-dispatch that modules subscribe to. See SPECS\03_Behaviour.md "Settings".
+local ADDON_NAME, NS = ...
+local Util = NS.Util
+
+local Settings = {}
+NS.Settings = Settings
+
+Settings.DEFAULTS = {
+  Enabled = true,
+
+  -- 03_Behaviour
+  LineFadeSeconds = 15,                      -- 0 = never fade
+  Sticky = {
+    SAY = true, YELL = false, PARTY = true, RAID = true, RAID_WARNING = true,
+    INSTANCE_CHAT = false, GUILD = false, OFFICER = true, WHISPER = false,
+    BN_WHISPER = false, CHANNEL = false, EMOTE = false,
+  },
+
+  -- 01_LineFormatting
+  Timestamps = true,
+  TimestampFormat = "%H:%M",
+  ShortChannelTags = true,
+  ShowLevelInName = true,
+  LevelColorByDifficulty = true,
+}
+
+-- Listeners: key -> { fn, fn, ... }. "*" receives every change.
+local listeners = {}
+
+function Settings.OnChange(key, fn)
+  listeners[key] = listeners[key] or {}
+  table.insert(listeners[key], fn)
+end
+
+function NS.OnSettingChanged(key)
+  local function fire(list) if list then for _, fn in ipairs(list) do fn(key) end end end
+  fire(listeners[key])
+  fire(listeners["*"])
+end
+
+function Settings.Init()
+  VelocityChatFramesDB = VelocityChatFramesDB or {}
+  VelocityChatFramesDB.settings = Util.ApplyDefaults(VelocityChatFramesDB.settings or {}, Settings.DEFAULTS)
+  NS.db = VelocityChatFramesDB
+  return NS.db.settings
+end
+
+function Settings.Get() return NS.db.settings end
+function Settings.IsEnabled() return NS.db and NS.db.settings.Enabled end

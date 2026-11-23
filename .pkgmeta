@@ -1,0 +1,15 @@
+package-as: VelocityChatFrames
+
+move-folders:
+  VelocityChatFrames/VelocityChatFrames: VelocityChatFrames
+
+externals:
+  VelocityChatFrames/Libs/LibZoneBrightness: https://github.com/WoWAddons-Kuro/LibZoneBrightness
+
+ignore:
+  - ".git*"
+  - "*.md"
+  - SPECS
+  - Assets
+  - "*.png"
+  - "*.jpg"

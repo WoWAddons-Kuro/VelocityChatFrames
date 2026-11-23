@@ -1,0 +1,30 @@
+## Interface: 11509
+## Title: Velocity Chat Frames
+## Notes: Chat windows that stay out of the way. No hover reveal, short fade, short channel tags, level in sender names.
+## Author: Kuro
+## Version: @project-version@
+## SavedVariables: VelocityChatFramesDB
+## OptionalDeps: LibStub, LibZoneBrightness
+## X-Website: https://github.com/WoWAddons-Kuro/VelocityChatFrames
+
+Libs\LibStub\LibStub.lua
+Libs\LibZoneBrightness\LibZoneBrightness-1.0.lua
+
+Core\Util.lua
+Core\Settings.lua
+
+Client\Client.lua
+Client\Client_ClassicEra.lua
+Client\Client_Forever.lua
+Client\Client_Select.lua
+
+Core\Windows.lua
+Core\Reveal.lua
+Core\Sticky.lua
+Core\Fading.lua
+Core\PlayerData.lua
+Core\LineFormat.lua
+
+UI\Options.lua
+
+VelocityChatFrames.lua
