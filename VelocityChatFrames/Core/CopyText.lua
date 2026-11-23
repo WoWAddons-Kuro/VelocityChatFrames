@@ -15,6 +15,9 @@ CopyText.SELECTION_IDLE_SECS = 10
 local activeFrame = nil          -- the one window currently in selection mode
 local idleTimer = nil            -- C_Timer handle for the timeout
 local lastTouch = 0              -- GetTime() of the last mouse interaction
+-- Forward declarations: these are defined below but referenced by closures created above them.
+local OnMouseUpPre
+local ShowToast
 
 local function IsOn(frame) return frame == activeFrame end
 
@@ -110,7 +113,7 @@ local function GetToast(frame)
   return toast
 end
 
-local function ShowToast(frame, msg)
+function ShowToast(frame, msg)
   local toast = GetToast(frame)
   toast.text:SetText(msg)
   toast:SetWidth(math.max(140, toast.text:GetStringWidth() + 24))
@@ -217,7 +220,7 @@ end
 -- Replace the stock mouse-up (which calls the protected CopyToClipboard) for the active frame:
 -- pre-hook OnMouseUp, gather the text ourselves, then cancel the stock selection so its own
 -- handler finds nothing to copy.
-local function OnMouseUpPre(frame, button)
+function OnMouseUpPre(frame, button)
   if button ~= "LeftButton" or not IsOn(frame) then return end
   if not (frame.IsSelectingText and frame:IsSelectingText()) then return end
   local x, y = frame:GetScaledCursorPosition()
