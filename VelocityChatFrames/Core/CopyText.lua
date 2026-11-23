@@ -45,7 +45,14 @@ local function HookTouch(frame)
   if frame.vcfTouchHooked then return end
   frame.vcfTouchHooked = true
   frame:HookScript("OnMouseDown", Touch)
-  frame:HookScript("OnMouseUp", Touch)
+  -- OnMouseUp must run BEFORE the stock handler (which would call protected CopyToClipboard),
+  -- so wrap the existing script rather than HookScript (which runs after).
+  local orig = frame:GetScript("OnMouseUp")
+  frame:SetScript("OnMouseUp", function(self, button)
+    Touch()
+    OnMouseUpPre(self, button)
+    if orig then orig(self, button) end
+  end)
   frame:HookScript("OnMouseWheel", Touch)
   frame:HookScript("OnEnter", Touch)
 end
@@ -60,11 +67,11 @@ function CopyText.Begin(frame)
   frame:EnableMouse(true)
   if frame.SetMouseClickEnabled then frame:SetMouseClickEnabled(true) end
   frame:SetFading(false)
+  HoldFocus()
   Touch()
   CancelTimer()
   idleTimer = C_Timer.NewTimer(CopyText.SELECTION_IDLE_SECS + 0.1, OnIdleTick)
-  Util.Print("selection on for %s: drag to select, release to copy. Ends after %ds without touching the window.",
-    frame.name or frame:GetName(), CopyText.SELECTION_IDLE_SECS)
+  ShowToast(frame, string.format("selection on: drag, then Ctrl+C. Esc or %ds idle ends it", CopyText.SELECTION_IDLE_SECS))
 end
 
 function CopyText.End(reason)
@@ -72,11 +79,12 @@ function CopyText.End(reason)
   local frame = activeFrame
   activeFrame = nil
   if not frame then return end
+  ReleaseFocus()
   frame:SetTextCopyable(false)
   local rec = Windows.Get(frame)
   if NS.Fading then NS.Fading.ApplyRest(rec or { frame = frame, isCombatLog = false }) end
   if NS.Reveal and rec then NS.Reveal.ApplyChrome(rec) end
-  if reason == "idle" then Util.Print("selection off (idle)") end
+  ShowToast(frame, "selection off")
 end
 
 function CopyText.Toggle(frame)
@@ -117,7 +125,76 @@ local function ShowToast(frame, msg)
   end)
 end
 
+-- Clipboard ---------------------------------------------------------------------------------
+-- CopyToClipboard() is a protected API: addons cannot call it, and because our SetTextCopyable
+-- call taints the frame, the stock OnPostMouseUp path is forbidden too (ADDON_ACTION_FORBIDDEN).
+-- The only clipboard route open to addons is an EditBox with focus + Ctrl+C. So for the whole
+-- selection session an invisible EditBox holds keyboard focus; each drag release puts the
+-- selected text in it and highlights it, so Ctrl+C at any moment copies the last selection.
+-- While the session is on, keys go to that box (you cannot move); Escape ends the session.
+local VCF_CopyEditBox
+
+local function GetCopyBox()
+  if VCF_CopyEditBox then return VCF_CopyEditBox end
+  local box = CreateFrame("EditBox", "VelocityChatFramesCopyBox", UIParent)
+  box:SetSize(1, 1)
+  box:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", -10, -10)   -- off screen
+  box:SetAutoFocus(false)
+  box:SetMultiLine(true)
+  box:SetFontObject(ChatFontNormal)
+  box:SetAlpha(0)
+  box:EnableMouse(false)
+  box:SetScript("OnEscapePressed", function() CopyText.End("escape") end)
+  -- Something else took focus (chat Enter, a dialog): the session is over.
+  box:SetScript("OnEditFocusLost", function(self) self:SetText(""); if activeFrame then CopyText.End("focus") end end)
+  -- Ctrl+C in a focused EditBox is handled by the client; nothing to do here.
+  VCF_CopyEditBox = box
+  return box
+end
+
+local function HoldFocus()
+  local box = GetCopyBox()
+  box:SetText("")
+  box:Show()
+  box:SetFocus()
+end
+
+local function ReleaseFocus()
+  if not VCF_CopyEditBox then return end
+  local box = VCF_CopyEditBox
+  box:SetScript("OnEditFocusLost", nil)       -- do not re-enter End from the ClearFocus below
+  box:ClearFocus()
+  box:SetText("")
+  box:SetScript("OnEditFocusLost", function(self) self:SetText(""); if activeFrame then CopyText.End("focus") end end)
+end
+
+local function StageForClipboard(frame, text)
+  local box = GetCopyBox()
+  box:SetText(text)
+  if not box:HasFocus() then box:SetFocus() end
+  box:HighlightText()
+  Touch()
+  ShowToast(frame, string.format("%d chars selected - Ctrl+C copies", #text))
+end
+
+-- Replace the stock mouse-up (which calls the protected CopyToClipboard) for the active frame:
+-- pre-hook OnMouseUp, gather the text ourselves, then cancel the stock selection so its own
+-- handler finds nothing to copy.
+local function OnMouseUpPre(frame, button)
+  if button ~= "LeftButton" or not IsOn(frame) then return end
+  if not (frame.IsSelectingText and frame:IsSelectingText()) then return end
+  local x, y = frame:GetScaledCursorPosition()
+  local ok, text = pcall(frame.GatherSelectedText, frame, x, y)
+  frame:ResetSelectingText()        -- stock OnPostMouseUp now sees IsSelectingText() == false
+  if ok and text and text ~= "" then
+    -- strip |c..|r colour codes and |H..|h links like REMOVE_MARKUP would
+    text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h(.-)|h", "%1"):gsub("|T.-|t", "")
+    StageForClipboard(frame, text)
+  end
+end
+
 local function OnCopied(frame, text, numCopied)
+  -- Reached only if the stock path ever becomes allowed; harmless.
   Touch()
   ShowToast(frame, string.format("copied to clipboard (%d chars)", numCopied or #text))
 end
