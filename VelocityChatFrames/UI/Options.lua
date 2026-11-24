@@ -107,6 +107,12 @@ function Options.Create()
   local lines = Section("Lines")
   lines:Add(Slider(lines, "VelocityChatFramesOptFade", "LineFadeSeconds", 15, 0, 240, 1,
     function(v) if v <= 0 then return "Lines never fade" end return string.format("Lines fade %d s after they arrive", v) end), 44, -10)
+  local hover = Check(lines, "HoverPausesFade", "Pointer over a window pauses fading", "While the pointer is over a chat window nothing fades; when it leaves, every line gets a fresh delay. The world behind still responds to hover. Greyed out if this client cannot pass pointer motion through a frame.")
+  hover.Update = function(self) self:SetChecked(db().HoverPausesFade and true or false); self:SetEnabled(NS.Fading and NS.Fading.canPauseOnHover or false) end
+  lines:Add(hover, 26, -10)
+  lines:Add(Check(lines, "OwnInputExtendsFade", "Hold lines longer after you say something", "After a line you sent (say, guild, party, whisper...), every window keeps its lines for the time below before falling back to the normal fade."), 26)
+  lines:Add(Slider(lines, "VelocityChatFramesOptOwnFade", "OwnInputFadeSeconds", 30, 5, 180, 5,
+    function(v) return string.format("Hold for %d s after your own line", v) end), 44, -6)
   lines:Add(Check(lines, "Timestamps", "Timestamps", "Prefix every line with the time it arrived (uses the game's own timestamp setting, HH:MM)."), 26, -10)
   lines:Add(Check(lines, "ShortChannelTags", "Short channel tags", "[G] instead of [Guild], [P] instead of [Party], [W From] / [W To] for whispers, and so on."), 26)
   lines:Add(Check(lines, "ShowLevelInName", "Show level in sender names", "[3:Kuro Ragemane] when the sender's level is known from your guild roster, friends list, group, target or mouseover."), 26)

@@ -113,8 +113,9 @@ function TabMenu.SetPrimaryUnlocked(on)
     if tab.vcfDragging then OnTabDragStop(tab) end
     if grip.vcfSizing then grip:GetScript("OnMouseUp")(grip) end
     grip:Hide()
-    if NS.Reveal then NS.Reveal.ApplyAll() end
   end
+  if NS.Reveal then NS.Reveal.ApplyAll() end
+  if NS.Fading then NS.Fading.ApplyAll() end
 end
 
 function TabMenu.IsPrimaryUnlocked() return VCF_PrimaryUnlocked end

@@ -11,6 +11,9 @@ Settings.DEFAULTS = {
 
   -- 03_Behaviour
   LineFadeSeconds = 15,                      -- 0 = never fade
+  HoverPausesFade = true,                    -- pointer over a window: nothing fades; on leave, fresh delay
+  OwnInputExtendsFade = true,                -- after a line you sent, hold lines longer
+  OwnInputFadeSeconds = 30,                  -- how long (5..180)
   Sticky = {
     SAY = true, YELL = false, PARTY = true, RAID = true, RAID_WARNING = true,
     INSTANCE_CHAT = false, GUILD = false, OFFICER = true, WHISPER = false,

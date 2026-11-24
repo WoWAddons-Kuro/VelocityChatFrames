@@ -98,9 +98,13 @@ function PlayerData.RequestGuildRoster()
 end
 
 local events = CreateFrame("Frame")
+local function Seed()
+  FillSelf(); FillFriends(); FillGroup(); PlayerData.RequestGuildRoster()
+end
+
 events:SetScript("OnEvent", function(_, event, ...)
-  if event == "PLAYER_LOGIN" then
-    FillSelf(); FillFriends(); FillGroup(); PlayerData.RequestGuildRoster()
+  if event == "PLAYER_ENTERING_WORLD" then
+    Seed()                                    -- also re-seeds after the PLAYER_LEAVING_WORLD wipe
   elseif event == "PLAYER_LEVEL_UP" then FillSelf()
   elseif event == "GUILD_ROSTER_UPDATE" then FillGuild()
   elseif event == "FRIENDLIST_UPDATE" then FillFriends()
@@ -113,11 +117,15 @@ events:SetScript("OnEvent", function(_, event, ...)
   end
 end)
 
+-- Init runs FROM the addon's own PLAYER_LOGIN handler, so registering for PLAYER_LOGIN here
+-- would wait for an event that has already fired this session: the store stayed empty, even of
+-- ourselves (owner 2026-11-23: "known players=0"). Seed directly instead.
 function PlayerData.Init()
-  for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_LEVEL_UP", "GUILD_ROSTER_UPDATE", "FRIENDLIST_UPDATE", "GROUP_ROSTER_UPDATE",
+  for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "GUILD_ROSTER_UPDATE", "FRIENDLIST_UPDATE", "GROUP_ROSTER_UPDATE",
                        "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "WHO_LIST_UPDATE", "PLAYER_LEAVING_WORLD" }) do
     events:RegisterEvent(e)
   end
+  Seed()
 end
 
 function PlayerData.Count()

@@ -66,6 +66,7 @@ end
 -- then fading out over the stock line fade duration. Pointer motion never reveals (Principle 2);
 -- the wheel is a deliberate act and is the one input the frame takes at rest.
 local wheelRevealedAt = {}       -- rec -> GetTime() of the last wheel turn
+local dragRevealTargets = {}     -- rec -> true while a dragged tab is over its window/dock
 
 local function LineFadeDurationSecs(rec)
   local d = rec.frame.GetFadeDuration and rec.frame:GetFadeDuration()
@@ -88,10 +89,21 @@ local function InEditMode()
 end
 Reveal.InEditMode = InEditMode
 
+-- Docked tabs share the primary window's lock state. Floating windows use their own.
+function Reveal.IsWindowUnlocked(rec)
+  local frame = rec.frame
+  if frame.isDocked and GENERAL_CHAT_DOCK then frame = GENERAL_CHAT_DOCK.primary or frame end
+  if frame == DEFAULT_CHAT_FRAME or frame == ChatFrame1 then
+    return NS.TabMenu and NS.TabMenu.IsPrimaryUnlocked and NS.TabMenu.IsPrimaryUnlocked()
+      or frame.isLocked == false
+  end
+  return frame.isLocked == false
+end
+
 -- 0 = at rest, 1 = fully revealed, in between = fading out. Mirrors
 -- ScrollingMessageFrameMixin:CalculateLineAlphaValueFromTimestamp.
 local function WheelRevealLevel(rec)
-  if InEditMode() then return 1 end
+  if InEditMode() or Reveal.IsWindowUnlocked(rec) or dragRevealTargets[rec] then return 1 end
   local t0 = wheelRevealedAt[rec]
   if not t0 then return 0 end
   local age = GetTime() - t0
@@ -145,7 +157,7 @@ function Reveal.ApplyChrome(rec)
   if not rec then return end
   local s = Settings.Get()
   local level = WheelRevealLevel(rec)
-  local editing = InEditMode()
+  local editing = InEditMode() or Reveal.IsWindowUnlocked(rec) or dragRevealTargets[rec]
   if s.WheelRevealsBackground or editing then
     ApplyBackgroundLevel(rec, level)
   else
@@ -248,6 +260,38 @@ local function OnWheel(frame)
   EnsureFadeTicker(rec)
 end
 
+-- Stock runs FCFTab_OnUpdate only during a tab drag. Use its existing cursor check
+-- cadence, including the tab strip above the body; no hover-triggered normal reveal.
+local function UpdateDragTargets()
+  if not Settings.IsEnabled() or not MOVING_CHATFRAME then return end
+  local nextTargets = {}
+  for _, rec in ipairs(Windows.All()) do
+    if rec.frame ~= MOVING_CHATFRAME and rec.frame:IsShown()
+        and rec.frame:IsMouseOver(32, 0, 0, 0) then
+      for _, mate in ipairs(DockMates(rec)) do nextTargets[mate] = true end
+    end
+  end
+  local changed = false
+  for rec in pairs(dragRevealTargets) do
+    if not nextTargets[rec] then
+      dragRevealTargets[rec] = nil
+      OnWheel(rec.frame)
+      changed = true
+    end
+  end
+  for rec in pairs(nextTargets) do
+    if not dragRevealTargets[rec] then dragRevealTargets[rec] = true; changed = true end
+  end
+  if changed then Reveal.ApplyAll() end
+end
+
+local function FinishDragReveal()
+  local previous = dragRevealTargets
+  dragRevealTargets = {}
+  for rec in pairs(previous) do OnWheel(rec.frame) end
+  if Settings.IsEnabled() then Reveal.ApplyAll() end
+end
+
 local function OnStockFade(chatFrame)
   if not Settings.IsEnabled() then return end
   Reveal.ApplyChrome(Windows.Get(chatFrame))
@@ -256,7 +300,16 @@ end
 function Reveal.Init()
   if hooked then return end
   hooked = true
+  if FCFTab_OnUpdate then hooksecurefunc("FCFTab_OnUpdate", UpdateDragTargets) end
+  if FCF_StopDragging then hooksecurefunc("FCF_StopDragging", FinishDragReveal) end
   hooksecurefunc("FCF_FadeInChatFrame", OnStockFade)
+  if FCF_SetLocked then
+    hooksecurefunc("FCF_SetLocked", function()
+      if not Settings.IsEnabled() then return end
+      Reveal.ApplyAll()
+      if NS.Fading then NS.Fading.ApplyAll() end
+    end)
+  end
   hooksecurefunc("FCF_FadeOutChatFrame", OnStockFade)
   -- FCFTab_UpdateAlpha sets the tab alpha directly (dock update, tab select, alert); it runs
   -- after our pass at login, which left background tabs visible until the next re-apply.

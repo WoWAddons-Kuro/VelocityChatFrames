@@ -6,6 +6,7 @@
 ## SavedVariables: VelocityChatFramesDB
 ## OptionalDeps: LibStub, LibZoneBrightness
 ## X-Website: https://github.com/WoWAddons-Kuro/VelocityChatFrames
+## X-Curse-Project-ID: 1827455
 
 Libs\LibStub\LibStub.lua
 Libs\LibEditMode\embed.xml
@@ -30,6 +31,7 @@ Core\EditModeLayout.lua
 Core\EditBox.lua
 Core\TabMenu.lua
 Core\CopyText.lua
+Core\TestWindow.lua
 
 UI\Options.lua
 

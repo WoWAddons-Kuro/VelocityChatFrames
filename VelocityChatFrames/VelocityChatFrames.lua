@@ -17,6 +17,8 @@ local function SlashHandler(msg)
   if msg == "status" then Status()
   elseif msg:match("^copy") then
     NS.CopyText.SlashToggle(msg:match("^copy%s*(%d*)"))
+  elseif msg:match("^test") then
+    NS.TestWindow.Toggle(msg:match("^test%s*(%S*)"))
   elseif msg == "on" or msg == "off" then
     NS.Settings.Get().Enabled = (msg == "on"); NS.OnSettingChanged("Enabled"); Util.Print("enabled=%s", msg)
   else
