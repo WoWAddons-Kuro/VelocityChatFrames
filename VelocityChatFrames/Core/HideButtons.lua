@@ -22,10 +22,7 @@ HideButtons.ITEMS = {
     frames = function()
       local out = {}
       for _, rec in ipairs(Windows.All()) do
-        local n = rec.name
-        for _, suffix in ipairs({ "ButtonFrameUpButton", "ButtonFrameDownButton", "ButtonFrameBottomButton", "ButtonFrameMinimizeButton" }) do
-          if _G[n .. suffix] then table.insert(out, _G[n .. suffix]) end
-        end
+        for _, f in ipairs(NS.Client.ScrollColumnButtons(rec.name)) do table.insert(out, f) end
         if rec.buttonFrame then table.insert(out, rec.buttonFrame) end
       end
       return out

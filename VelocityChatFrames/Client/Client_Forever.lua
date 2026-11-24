@@ -22,3 +22,13 @@ function impl.TabRestAlpha(tab, isSelected)
   end
   return isSelected and CHAT_FRAME_TAB_SELECTED_NOMOUSE_ALPHA or CHAT_FRAME_TAB_NORMAL_NOMOUSE_ALPHA
 end
+
+-- Forever: all four buttons are children of ChatFrameNButtonFrame (FloatingChatFrame.Mainline.xml 491-506).
+local FOREVER_BUTTON_SUFFIXES = { "ButtonFrameUpButton", "ButtonFrameDownButton", "ButtonFrameBottomButton", "ButtonFrameMinimizeButton" }
+function impl.ScrollColumnButtons(chatFrameName)
+  local out = {}
+  for _, suffix in ipairs(FOREVER_BUTTON_SUFFIXES) do
+    local f = _G[chatFrameName .. suffix]; if f then table.insert(out, f) end
+  end
+  return out
+end

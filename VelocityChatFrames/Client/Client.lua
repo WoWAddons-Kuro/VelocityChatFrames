@@ -11,4 +11,5 @@ Client.INTERFACE = {
   "PlayerDisplayName",    -- Era "Kuro"; Forever "Kuro Oakheart"
   "PlayerFirstName",      -- UnitName("player"): what chat sender names compare against
   "TabRestAlpha",         -- (tab, isSelected) -> the stock no-mouse alpha for that tab
+  "ScrollColumnButtons",  -- (chatFrameName) -> list of the window's scroll/minimize buttons (names differ per client)
 }
