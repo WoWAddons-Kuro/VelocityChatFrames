@@ -5,8 +5,9 @@
 --   hover     while the pointer is over a window nothing fades; on leave every line gets a fresh
 --             rest delay (ResetAllFadeTimes = overrideFadeTimestamp := now). Needs OnEnter/OnLeave
 --             while clicks still pass to the world: SetPropagateMouseMotion(true), feature-detected.
---   own input after a line YOU sent, the window holds lines for OwnInputFadeSeconds (30 s) and then
---             falls back to the rest delay.
+--   own input after a line YOU sent, only the window(s) that DISPLAYED it hold lines for
+--             OwnInputFadeSeconds (30 s) and then fall back to the rest delay. Other windows and
+--             already-faded lines are never touched (no ResetAllFadeTimes).
 local ADDON_NAME, NS = ...
 local Util, Client, Settings, Windows = NS.Util, NS.Client, NS.Settings, NS.Windows
 
@@ -101,24 +102,46 @@ function Fading.ApplyHoverSensing(rec)
 end
 
 -- Own input -----------------------------------------------------------------------------------
+-- Which windows actually DISPLAYED the line you just sent? Stock routing (message groups,
+-- channel lists, filters) is not re-implemented; instead every window's AddMessage is hooked and
+-- stamped with GetTime(). GetTime() is constant within one frame tick, so a window stamped with
+-- the tick of our CHAT_MSG_* event received that very message. The check runs a tick later
+-- (C_Timer.After(0)) so it does not matter whether the chat frames' handlers ran before ours.
+local VCF_LastAddMessageTick = {}   -- rec -> GetTime() of the window's most recent AddMessage
+
+local function WireAddMessageStamp(rec)
+  local f = rec.frame
+  if rec.isCombatLog or f.vcfAddMessageStamped or not f.AddMessage then return end
+  f.vcfAddMessageStamped = true
+  hooksecurefunc(f, "AddMessage", function() VCF_LastAddMessageTick[rec] = GetTime() end)
+end
+
+-- Hold lines in ONE window: SetTimeVisible(OwnInputFadeSeconds) for that long, then back to rest.
+-- Deliberately no ResetAllFadeTimes: that re-stamps every existing line as "shown now" and was
+-- what un-hid all lines in all windows on every sent message.
+local function ExtendWindowForOwnInput(rec, secs)
+  VCF_OwnInputUntil[rec] = GetTime() + secs
+  Fading.ApplyRest(rec)
+  if VCF_OwnInputTimer[rec] then VCF_OwnInputTimer[rec]:Cancel() end
+  VCF_OwnInputTimer[rec] = C_Timer.NewTimer(secs + 0.1, function()
+    VCF_OwnInputTimer[rec] = nil
+    VCF_OwnInputUntil[rec] = nil
+    Fading.ApplyRest(rec)
+  end)
+end
+
 local function ExtendForOwnInput()
   local s = Settings.Get()
   if not (Settings.IsEnabled() and s.OwnInputExtendsFade) then return end
   local secs = s.OwnInputFadeSeconds or 30
-  local untilT = GetTime() + secs
-  for _, rec in ipairs(Windows.All()) do
-    if not rec.isCombatLog and rec.frame:IsShown() then
-      VCF_OwnInputUntil[rec] = untilT
-      if rec.frame.ResetAllFadeTimes then rec.frame:ResetAllFadeTimes() end
-      Fading.ApplyRest(rec)
-      if VCF_OwnInputTimer[rec] then VCF_OwnInputTimer[rec]:Cancel() end
-      VCF_OwnInputTimer[rec] = C_Timer.NewTimer(secs + 0.1, function()
-        VCF_OwnInputTimer[rec] = nil
-        VCF_OwnInputUntil[rec] = nil
-        Fading.ApplyRest(rec)
-      end)
+  local eventTick = GetTime()
+  C_Timer.After(0, function()
+    for _, rec in ipairs(Windows.All()) do
+      if not rec.isCombatLog and VCF_LastAddMessageTick[rec] == eventTick then
+        ExtendWindowForOwnInput(rec, secs)
+      end
     end
-  end
+  end)
 end
 
 -- CHAT_MSG_* arg2 is the sender's name (first name on Forever). Compare against ours; secret
@@ -142,9 +165,10 @@ end)
 function Fading.Init()
   Windows.OnNewRecord(function(rec)
     WireHover(rec)
+    WireAddMessageStamp(rec)
     if Settings.IsEnabled() then Fading.ApplyRest(rec) end
   end)
-  for _, rec in ipairs(Windows.All()) do WireHover(rec) end
+  for _, rec in ipairs(Windows.All()) do WireHover(rec); WireAddMessageStamp(rec) end
   for _, e in ipairs(OWN_EVENTS) do events:RegisterEvent(e) end
   if Settings.IsEnabled() then Fading.ApplyAll() end
 end

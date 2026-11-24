@@ -110,7 +110,7 @@ function Options.Create()
   local hover = Check(lines, "HoverPausesFade", "Pointer over a window pauses fading", "While the pointer is over a chat window nothing fades; when it leaves, every line gets a fresh delay. The world behind still responds to hover. Greyed out if this client cannot pass pointer motion through a frame.")
   hover.Update = function(self) self:SetChecked(db().HoverPausesFade and true or false); self:SetEnabled(NS.Fading and NS.Fading.canPauseOnHover or false) end
   lines:Add(hover, 26, -10)
-  lines:Add(Check(lines, "OwnInputExtendsFade", "Hold lines longer after you say something", "After a line you sent (say, guild, party, whisper...), every window keeps its lines for the time below before falling back to the normal fade."), 26)
+  lines:Add(Check(lines, "OwnInputExtendsFade", "Hold lines longer after you say something", "After a line you sent (say, guild, party, whisper...), the window that shows it keeps its lines for the time below before falling back to the normal fade. Other windows are not affected."), 26)
   lines:Add(Slider(lines, "VelocityChatFramesOptOwnFade", "OwnInputFadeSeconds", 30, 5, 180, 5,
     function(v) return string.format("Hold for %d s after your own line", v) end), 44, -6)
   lines:Add(Check(lines, "Timestamps", "Timestamps", "Prefix every line with the time it arrived (uses the game's own timestamp setting, HH:MM)."), 26, -10)
