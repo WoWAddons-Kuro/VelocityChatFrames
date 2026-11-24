@@ -70,6 +70,7 @@ function CopyText.Begin(frame)
   activeFrame = frame
   HookTouch(frame)
   frame:SetTextCopyable(true)
+  if NS.CopySelect then NS.CopySelect.Attach(frame) end   -- multi-screen anchor + edge scroll
   -- Selection needs clicks; Phase 2 Rest turns them off, so force on while selecting.
   frame:EnableMouse(true)
   if frame.SetMouseClickEnabled then frame:SetMouseClickEnabled(true) end
@@ -102,6 +103,7 @@ function CopyText.End(reason)
   local frame = activeFrame
   activeFrame = nil
   if not frame then return end
+  if NS.CopySelect then NS.CopySelect.Detach(frame) end
   CopyText.ApplyClickThrough(frame, frame.vcfSelectionMotionBefore, frame.vcfSelectionWheelBefore)
   frame.vcfSelectionMotionBefore, frame.vcfSelectionWheelBefore = nil, nil
   local rec = Windows.Get(frame)
@@ -191,7 +193,18 @@ local function GetCopyWindow()
   box:SetFontObject(ChatFontNormal)
   box:SetWidth(scroll:GetWidth() > 0 and scroll:GetWidth() or 500)
   box:SetScript("OnEscapePressed", function() win:Hide() end)
-  box:SetScript("OnTextChanged", function(self, userInput) if userInput then self:SetText(self.vcfText or "") end end) -- read-only
+  -- Read-only: restore the staged text if the box's content ever differs from it. Compare content rather
+  -- than trusting the userInput flag: a large SetText has been observed arriving as userInput=true on Era
+  -- and the re-SetText inside that event emptied the box (debug rows showed boxText=0 after 1416 chars).
+  box:SetScript("OnTextChanged", function(self, userInput)
+    local want = self.vcfText or ""
+    local have = self:GetText() or ""
+    if CopyText.debug then
+      Util.Print("copy: OnTextChanged userInput=%s have=%d want=%d", tostring(userInput), #have, #want)
+    end
+    if have == want or self.vcfRestoring then return end
+    self.vcfRestoring = true; self:SetText(want); self.vcfRestoring = nil
+  end)
   scroll:SetScrollChild(box)
   scroll:SetScript("OnSizeChanged", function(self, w) box:SetWidth(w) end)
   win.box = box
@@ -247,7 +260,16 @@ local function ShowCopyWindow(frame, text)
   win.box.vcfText = text
   win.scroll:SetVerticalScroll(0)
   win.box:SetText(text)
-  win.count:SetText(string.format("%d characters, %d lines", #text, select(2, text:gsub("\n", "")) + 1))
+  local lineCount = select(2, text:gsub("\n", "")) + 1
+  -- An explicitly sized multi-line EditBox does not grow with its text, and SetText parks the cursor at
+  -- the end, so a selection taller than the scroll frame rendered as blank space. Size the box to the
+  -- text (line count x line height, generous for wraps) so every line has room and the scroll frame scrolls.
+  local _, fontHeight = win.box:GetFont()
+  fontHeight = (fontHeight and fontHeight > 0) and fontHeight or 14
+  local wrapAllowance = 1.6   -- long chat lines wrap in the review box; over-allocate rather than clip
+  local neededHeight = lineCount * fontHeight * wrapAllowance + 24
+  win.box:SetHeight(math.max(win.scroll:GetHeight() or 0, neededHeight))
+  win.count:SetText(string.format("%d characters, %d lines", #text, lineCount))
   win.title:SetText(string.format("Selected text from %s", frame.name or frame:GetName()))
   win.vcfShowSerial = (win.vcfShowSerial or 0) + 1
   local serial = win.vcfShowSerial
@@ -259,6 +281,24 @@ local function ShowCopyWindow(frame, text)
     if win.vcfShowSerial ~= serial or not win:IsShown() then return end
     win.SelectAll()
   end)
+  -- Watchdog: the box has intermittently been found EMPTY shortly after SetText (debug rows: 1416 chars
+  -- staged, boxText=0, height collapsed). Cause not yet isolated, so until it is: re-check a few times and
+  -- re-stage the text if it is missing. Stops as soon as the content matches or the window has moved on.
+  local RETRY_SECS, MAX_RETRIES = 0.5, 3
+  local function Watchdog(attempt)
+    if win.vcfShowSerial ~= serial or not win:IsShown() then return end
+    local have = win.box:GetText() or ""
+    if have == text then return end
+    if CopyText.debug then
+      Util.Print("copy: watchdog %d/%d - box has %d chars, expected %d; re-staging", attempt, MAX_RETRIES, #have, #text)
+    end
+    win.box.vcfText = text
+    win.box:SetText(text)
+    win.box:SetHeight(math.max(win.scroll:GetHeight() or 0, neededHeight))
+    win.SelectAll()
+    if attempt < MAX_RETRIES then C_Timer.After(RETRY_SECS, function() Watchdog(attempt + 1) end) end
+  end
+  C_Timer.After(RETRY_SECS, function() Watchdog(1) end)
   if CopyText.debug then
     C_Timer.After(0.15, function()
       if win.vcfShowSerial ~= serial then return end

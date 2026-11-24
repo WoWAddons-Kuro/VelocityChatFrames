@@ -33,6 +33,7 @@ Core\EditModeLayout.lua
 Core\EditBox.lua
 Core\TabMenu.lua
 Core\CopyText.lua
+Core\CopySelect.lua
 Core\TestWindow.lua
 
 UI\Options.lua
