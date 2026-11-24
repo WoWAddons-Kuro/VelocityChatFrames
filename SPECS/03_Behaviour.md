@@ -5,11 +5,14 @@
 - **Ground truth:** `_ref\blizzard\README-chat-api-notes.md` sections *Stock mouseover reveal*, *Sticky*; `_ref\blizzard\FloatingChatFrame.lua` (live) `FCF_OnUpdate` 1120, `FCF_FadeInChatFrame` 1052, `FCF_FadeOutChatFrame` 1085; Era `classic_era\FloatingChatFrame.lua` 979 / 915.
 - **Replaces from Prat:** `Fading.lua`, `ChannelSticky.lua` (minus SmartGroup), Frames "default alpha on mouseover".
 
-- [ ] Phase 0: reveal kill-switch on every window
-- [ ] Phase 0: settings DB, `/vcf`, options page with global Enable
-- [ ] Phase 1: sticky channels
-- [ ] Phase 1: line fade delay
-- [ ] Disable path restores stock behaviour without reload
+- [x] Phase 0: reveal kill-switch on every window (`Core\Reveal.lua`; also hooks `FCFTab_UpdateAlpha`, `FCFDock_UpdateTabs`, `FCFDock_SelectWindow`, `FCF_SetWindowAlpha`)
+- [x] Phase 0: settings DB, `/vcf`, options page with global Enable
+- [x] Phase 1: sticky channels
+- [x] Phase 1: line fade delay
+- [x] Disable path restores stock behaviour without reload
+- [x] Tabs at rest take the displayed window's background alpha (`TabsMatchWindowAlpha`; docked tabs follow the dock's selected window)
+- [x] Hide chat buttons, one checkbox each (`Core\Chrome.lua`); floating/locked edit box hidden when idle (`Core\EditBox.lua`)
+- [x] In-window text selection from the tab menu, 10 s idle timeout, review window + Ctrl+C (`Core\CopyText.lua`). `CopyToClipboard` is protected; no addon button can write the clipboard.
 
 ## Files
 

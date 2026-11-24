@@ -19,8 +19,8 @@ chat windows spread over the screen (see `Assets\Screenshots` once added), so bo
 
 Delivery order is fixed by tolerance: the owner must be able to switch off Prat on day one.
 
-- [ ] **Phase 0 — Reveal kill-switch.** Stock mouseover reveal does nothing on any chat window. Shippable alone. (`03_Behaviour.md`)
-- [ ] **Phase 1 — Prat replacement minimum.** Timestamps, `[G]`-style channel tags, `[level:Name]`, sticky channels, 15 s line fade. (`01_LineFormatting.md`, `03_Behaviour.md`)
+- [x] **Phase 0 — Reveal kill-switch.** Stock mouseover reveal does nothing on any chat window. Shippable alone. (`03_Behaviour.md`) — shipped `1e7d68f`; tab-alpha follow-ups `bbd772c` `ce68eb5` `0997b33`
+- [x] **Phase 1 — Prat replacement minimum.** Timestamps, `[G]`-style channel tags, `[level:Name]`, sticky channels, 15 s line fade. (`01_LineFormatting.md`, `03_Behaviour.md`) — shipped `1e7d68f`/`18773ac`; `[level:` on own lines still to be confirmed in play. Also delivered beyond the original list: hide-buttons checkboxes, floating/locked edit box hidden when idle, in-window text selection with review window (`add5654`…`ed2b6d0`)
 - [ ] **Phase 2 — Rest / Awake / Review / Chrome.** The input and visibility state machine below, with the Awake cutoff. (this file)
 - [ ] **Phase 3 — Flat theme and tabs.** Single-tone active tab, no glow, flat background; background alpha follows zone brightness. (`02_Theme.md`)
 - [ ] **Phase 4 — Zone-brightness text adjustment.** Per-line colour factor by band via the display-refresh hook. (`02_Theme.md`)

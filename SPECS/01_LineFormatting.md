@@ -5,10 +5,10 @@
 - **Replaces from Prat:** `Timestamps.lua`, `ChannelNames.lua` (short names only), `PlayerNames.lua` (level + class colour only).
 - **Target output** (owner's screenshot): `[03:24] [G] [3:Kuro Ragemane]: hey folks`
 
-- [ ] Timestamps
-- [ ] Short channel tags
-- [ ] Player data store (level, class) from stock events
-- [ ] `[level:Name]` rendering, level coloured by difficulty
+- [x] Timestamps (stock `showTimestamps` CVar)
+- [x] Short channel tags (`CHAT_<TYPE>_GET` rewrite; bracket-less stock formats such as `%s says:` are rebuilt as `[S] %s:`)
+- [x] Player data store (level, class) from stock events (`Core\PlayerData.lua`)
+- [x] `[level:Name]` rendering via `ChatFrameUtil.AddSenderNameFilter` (official, secret-safe, both clients) — own-line level still to confirm in play
 - [ ] Secret-value safety on Forever verified in an instance
 
 ## Where the text is shaped
