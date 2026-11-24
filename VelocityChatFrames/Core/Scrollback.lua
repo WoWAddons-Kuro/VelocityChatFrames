@@ -67,6 +67,30 @@ Scrollback.StripMarkup = StripMarkup
 
 -- Capture --------------------------------------------------------------------------------
 
+-- Lines the client re-emits itself on every login (GMOTD, disconnect/reconnect notices, welcome
+-- text). Restoring them stacks one copy per reload, so they are never captured.
+local function LoginBoilerplatePatterns()
+  local out = {}
+  local function add(globalFmt)
+    if type(globalFmt) ~= "string" or globalFmt == "" then return end
+    -- "%s" -> ".*", escape magic chars, anchor at start (a timestamp prefix may precede: allow it)
+    local pat = globalFmt:gsub("%%%d?%$?[sd]", "\0"):gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"):gsub("%z", ".*")
+    out[#out + 1] = pat
+  end
+  add(GUILD_MOTD_TEMPLATE)                      -- "Guild Message of the Day: %s"
+  add(CHAT_SERVER_DISCONNECTED_MESSAGE)
+  add(CHAT_SERVER_RECONNECTED_MESSAGE)
+  add(WELCOME_TO_WORLD_OF_WARCRAFT)
+  return out
+end
+local boilerplate = nil
+local function IsLoginBoilerplate(text)
+  boilerplate = boilerplate or LoginBoilerplatePatterns()
+  local plain = StripMarkup(text):gsub("^%[?%d%d:%d%d:?%d?%d?%]?%s*", "")   -- drop a leading timestamp
+  for _, pat in ipairs(boilerplate) do if plain:find("^" .. pat) then return true end end
+  return false
+end
+
 local function CaptureWindow(rec, maxLines)
   local frame = rec.frame
   local lines = {}
@@ -75,7 +99,7 @@ local function CaptureWindow(rec, maxLines)
   frame:ForEachMessage(function(entry)
     if n >= maxLines then return true end
     local text = entry.message
-    if type(text) == "string" and not IsSecret(text) and not entry.vcfMarker then
+    if type(text) == "string" and not IsSecret(text) and not entry.vcfMarker and not IsLoginBoilerplate(text) then
       n = n + 1
       lines[n] = { text = text, r = entry.r, g = entry.g, b = entry.b, visible = EntryVisible(frame, entry) }
     end

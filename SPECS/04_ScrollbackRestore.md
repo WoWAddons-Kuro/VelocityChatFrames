@@ -1,14 +1,16 @@
 # SPEC-VCF-04: Scrollback restore (lines survive login / reload; whispers follow you across characters)
 
-- **Status:** Draft (owner-approved design 2026-11-24)
+- **Status:** Built, committed `64aed7a` (2026-11-24); awaiting play-test of clickable names in restored lines
 - **Parent:** `00_VelocityChatFrames_Overview.md`
 - **Ground truth:** `_ref\blizzard\ScrollingMessageFrame.lua` (byte-identical Era/live): `AddMessage` 10, `BackFillMessage` 20, `GetMessageInfo` 30, `ForEachMessage` 37, `historyBuffer` entries `{message, r, g, b, extraData, timestamp}`, `RefreshDisplay` alpha = `CalculateLineAlphaValueFromTimestamp(now, max(entry.timestamp, overrideFadeTimestamp))`.
 - **Replaces from Prat:** `History.lua` (Prat keeps per-frame history in SavedVariables and re-adds on login).
 
-- [ ] Phase 1: per-window capture on `PLAYER_LOGOUT` + restore on login, with fade-state grace (`Core\Scrollback.lua`)
-- [ ] Phase 1: boundary marker line
-- [ ] Phase 2: whisper journal shared across characters (realm-scoped on Era), merged into every WHISPER-group window
-- [ ] Settings + options section "Scrollback restore"
+- [x] Phase 1: per-window capture on `PLAYER_LOGOUT` + restore on login, with fade-state grace (`Core\Scrollback.lua`)
+- [x] Phase 1: boundary marker line (ASCII `-- previous session (HH:MM, Mon DD) --`)
+- [x] Phase 2: whisper journal shared across characters (realm-scoped on Era), merged into every WHISPER-group window
+- [x] Settings + options section "Scrollback restore"
+- [x] Clickable `|Hplayer:` names in restored lines (as-is with `ScrollbackInColor`; stale `lineID` only affects Report)
+- [x] Login boilerplate never captured: lines matching `GUILD_MOTD_TEMPLATE`, `CHAT_SERVER_DISCONNECTED_MESSAGE`, `CHAT_SERVER_RECONNECTED_MESSAGE`, `WELCOME_TO_WORLD_OF_WARCRAFT` (patterns built from the globals, markup + leading timestamp stripped). The client re-prints these on every login, so restoring them stacked one copy per reload. Deliberately NOT a generic consecutive-duplicate dedupe: a player saying "lol" twice is real.
 
 ## Behaviour
 

@@ -9,6 +9,7 @@
   - `01_LineFormatting.md` — timestamps, short channel tags, level-in-name (the Prat features being replaced)
   - `02_Theme.md` — flat frame, flat tabs, zone-brightness adjustment (LibZoneBrightness); theme style selector
   - `03_Behaviour.md` — reveal kill-switch, wheel reveal, fade timers, hide buttons, edit box, tab menu, text selection, Edit Mode
+  - `04_ScrollbackRestore.md` — lines survive login / reload with their fade state (grace period), cross-character whisper journal, login-boilerplate exclusion
 - **Related:** `VelocityQuestTracker\SPECS\SPEC-VelocityQuestTracker.md` (shared principles), `LibZoneBrightness\README.md`, `Prat-3.0\modules\` (reference for what is being replaced)
 
 ## Goal
@@ -23,6 +24,7 @@ Delivery order is fixed by tolerance: the owner must be able to switch off Prat 
 - [x] **Phase 1 — Prat replacement minimum.** Timestamps, `[G]`-style channel tags, `[level:Name]`, sticky channels, 15 s line fade. (`01_LineFormatting.md`, `03_Behaviour.md`) — `1e7d68f`/`18773ac`. `[level:Name]` is **not yet appearing in play** (todo 13); numbered-channel tags still stock (todo 14).
 - [x] **Phase 1b — Everything Prat did that the owner used, beyond the list.** Hide-button checkboxes, floating/locked edit box hidden when idle, in-window text selection with review window, wheel reveal, revealed background colour/opacity with bright-zone boost, tabs at window alpha and dead when transparent, Edit Mode full reveal, Unlock/Lock Window + resize grip, Friends List and Frame Fade Settings on the tab menu, Edit Mode drag frames for the input box and floating windows. (`03_Behaviour.md`) — `18773ac` … `5d0d534`
 - [ ] **Phase 2 — Fade timers.** Hover pauses fading (passes motion through to the world); a line you sent holds every window's lines for a longer, configurable time. (`03_Behaviour.md`) — edited, awaiting confirmation (todo 12)
+- [x] **Phase 2b — Scrollback restore.** Per-window scrollback and a shared whisper journal survive login / reload; fade state carried across the gap by stamping SMF history `timestamp`s. (`04_ScrollbackRestore.md`) — `64aed7a` + boilerplate dedupe
 - [ ] **Phase 3 — Theme.** Force-transparent backgrounds; progressive top-to-bottom line fade; theme style selector (Automatic / Classic / Velocity Modern); flat tabs; zone-brightness text factor. (`02_Theme.md`) — todos 15–17
 
 ## Principles
