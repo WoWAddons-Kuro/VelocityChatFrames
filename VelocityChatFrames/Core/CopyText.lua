@@ -63,6 +63,10 @@ end
 function CopyText.Begin(frame)
   if not frame or not frame.SetTextCopyable then return end
   if activeFrame and activeFrame ~= frame then CopyText.End("switched") end
+  if activeFrame ~= frame then
+    frame.vcfSelectionMotionBefore = frame.IsMouseMotionEnabled and frame:IsMouseMotionEnabled()
+    frame.vcfSelectionWheelBefore = frame.IsMouseWheelEnabled and frame:IsMouseWheelEnabled()
+  end
   activeFrame = frame
   HookTouch(frame)
   frame:SetTextCopyable(true)
@@ -76,12 +80,30 @@ function CopyText.Begin(frame)
   ShowToast(frame, string.format("selection on: drag to select. Ends after %ds idle", CopyText.SELECTION_IDLE_SECS))
 end
 
+-- Shared baseline: use the same reset at startup and at selection exit. Never reset a
+-- window while selection is still active. Preserve wheel and motion independently.
+function CopyText.ApplyClickThrough(frame, motion, wheel)
+  if not frame or frame == activeFrame then return end
+  if motion == nil and frame.IsMouseMotionEnabled then motion = frame:IsMouseMotionEnabled() end
+  if wheel == nil and frame.IsMouseWheelEnabled then wheel = frame:IsMouseWheelEnabled() end
+  frame:SetTextCopyable(false)
+  frame:EnableMouse(false)
+  if frame.SetMouseClickEnabled then frame:SetMouseClickEnabled(false) end
+  if frame.SetMouseMotionEnabled and motion ~= nil then
+    frame:SetMouseMotionEnabled(motion)
+  end
+  if frame.EnableMouseWheel and wheel ~= nil then
+    frame:EnableMouseWheel(wheel)
+  end
+end
+
 function CopyText.End(reason)
   CancelTimer()
   local frame = activeFrame
   activeFrame = nil
   if not frame then return end
-  frame:SetTextCopyable(false)
+  CopyText.ApplyClickThrough(frame, frame.vcfSelectionMotionBefore, frame.vcfSelectionWheelBefore)
+  frame.vcfSelectionMotionBefore, frame.vcfSelectionWheelBefore = nil, nil
   local rec = Windows.Get(frame)
   if NS.Fading then NS.Fading.ApplyRest(rec or { frame = frame, isCombatLog = false }) end
   if NS.Reveal and rec then NS.Reveal.ApplyChrome(rec) end
@@ -195,7 +217,12 @@ local function GetCopyWindow()
   win.count = count
 
   win:SetScript("OnShow", function() C_Timer.After(0, SelectAll) end)
-  win:SetScript("OnHide", function() box:ClearFocus() end)
+  win:SetScript("OnHide", function(self)
+    box:ClearFocus()
+    local source = self.vcfSelectionFrame
+    self.vcfSelectionFrame = nil
+    if source and activeFrame == source then CopyText.End("popup closed") end
+  end)
   win.SelectAll = SelectAll
   win:Hide()
   tinsert(UISpecialFrames, "VelocityChatFramesCopyWindow")   -- Esc closes it even without focus
@@ -205,6 +232,7 @@ end
 
 local function ShowCopyWindow(frame, text)
   local win = GetCopyWindow()
+  win.vcfSelectionFrame = frame
   win.box.vcfText = text
   win.box:SetText(text)
   win.count:SetText(string.format("%d characters, %d lines", #text, select(2, text:gsub("\n", "")) + 1))
@@ -242,9 +270,19 @@ end
 function CopyText.Init()
   local function attach(rec)
     if rec.frame.SetOnTextCopiedCallback then rec.frame:SetOnTextCopiedCallback(OnCopied) end
+    if Settings.IsEnabled() then CopyText.ApplyClickThrough(rec.frame) end
   end
   Windows.OnNewRecord(attach)
   for _, rec in ipairs(Windows.All()) do attach(rec) end
+  -- Login/world initialization can configure the stock windows after our Init call.
+  local inputEvents = CreateFrame("Frame")
+  inputEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
+  inputEvents:SetScript("OnEvent", function()
+    C_Timer.After(0, function()
+      if not Settings.IsEnabled() then return end
+      for _, rec in ipairs(Windows.All()) do CopyText.ApplyClickThrough(rec.frame) end
+    end)
+  end)
 
   if Menu and Menu.ModifyMenu then
     Menu.ModifyMenu("MENU_FCF_TAB", function(owner, rootDescription)
