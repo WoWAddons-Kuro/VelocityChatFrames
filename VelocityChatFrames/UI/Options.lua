@@ -114,7 +114,8 @@ function Options.Create()
   lines:Finish()
 
   local ch = Section("Hide chat buttons")
-  local first = true
+  ch:Add(Check(ch, "TabsMatchWindowAlpha", "Tabs use the window's background alpha", "Chat tabs are as transparent as their window's background. Unticked: the game's own per-tab alpha."), 26, -10)
+  local first = false
   for _, item in ipairs(NS.Chrome.ITEMS) do
     ch:Add(Check(ch, item.key, item.label, item.tip), 26, first and -10 or nil)
     first = false

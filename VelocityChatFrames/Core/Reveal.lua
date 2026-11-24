@@ -43,7 +43,12 @@ function Reveal.ApplyChrome(rec)
   local bgAlpha = UserBackgroundAlpha(rec)
   for _, tex in ipairs(rec.texturePieces) do SetAlphaQuiet(tex, bgAlpha) end
 
-  if rec.tab then SetAlphaQuiet(rec.tab, Client.TabRestAlpha(rec.tab, IsSelectedTab(rec))) end
+  if rec.tab then
+    -- TabsMatchWindowAlpha: tabs sit at the window's own background alpha, so a near-invisible
+    -- window has near-invisible tabs. Off = the stock per-tab no-mouse alpha.
+    local tabAlpha = Settings.Get().TabsMatchWindowAlpha and bgAlpha or Client.TabRestAlpha(rec.tab, IsSelectedTab(rec))
+    SetAlphaQuiet(rec.tab, tabAlpha)
+  end
   if rec.buttonFrame and not rec.frame.isDocked then
     SetAlphaQuiet(rec.buttonFrame, CHAT_FRAME_BUTTON_FRAME_MIN_ALPHA or 0.2)
   end
@@ -90,3 +95,4 @@ end
 NS.Settings.OnChange("Enabled", function()
   if Settings.IsEnabled() then Reveal.ApplyAll() else Reveal.Restore() end
 end)
+NS.Settings.OnChange("TabsMatchWindowAlpha", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end)

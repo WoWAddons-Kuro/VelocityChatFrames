@@ -25,6 +25,7 @@ Settings.DEFAULTS = {
   LevelColorByDifficulty = true,
 
   -- Chrome (03_Behaviour)
+  TabsMatchWindowAlpha = true,
   HideMenuButton = true,
   HideSocialButton = true,
   HideChannelButton = true,
