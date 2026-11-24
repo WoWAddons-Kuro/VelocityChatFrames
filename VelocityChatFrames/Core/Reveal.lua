@@ -81,6 +81,10 @@ function Reveal.Init()
   hooksecurefunc("FCF_FadeInChatFrame", OnStockFade)
   hooksecurefunc("FCF_FadeOutChatFrame", OnStockFade)
   if FCF_DockUpdate then hooksecurefunc("FCF_DockUpdate", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
+  -- Selecting another tab changes which window's alpha the dock's tabs follow.
+  if FCFDock_SelectWindow then hooksecurefunc("FCFDock_SelectWindow", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
+  -- A window alpha change in the stock menu must re-flow to the tabs too.
+  if FCF_SetWindowAlpha then hooksecurefunc("FCF_SetWindowAlpha", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
   Windows.OnNewRecord(function(rec) if Settings.IsEnabled() then Reveal.ApplyChrome(rec) end end)
   if Settings.IsEnabled() then Reveal.ApplyAll() end
 end
