@@ -78,9 +78,20 @@ local function WheelHoldSecs()
   return secs
 end
 
+-- Edit Mode: while the Edit Mode manager is shown every window is fully revealed and nothing
+-- fades, so the layout you are dragging is the layout you can see.
+local function InEditMode()
+  local m = EditModeManagerFrame
+  if not m then return false end
+  if m.IsEditModeActive then return m:IsEditModeActive() end
+  return m:IsShown()
+end
+Reveal.InEditMode = InEditMode
+
 -- 0 = at rest, 1 = fully revealed, in between = fading out. Mirrors
 -- ScrollingMessageFrameMixin:CalculateLineAlphaValueFromTimestamp.
 local function WheelRevealLevel(rec)
+  if InEditMode() then return 1 end
   local t0 = wheelRevealedAt[rec]
   if not t0 then return 0 end
   local age = GetTime() - t0
@@ -108,16 +119,23 @@ local function RevealBackgroundRGBA()
 end
 
 -- Set the texture pieces to the revealed look blended toward the rest look by level (0..1).
+-- Only the Background texture is painted. CHAT_FRAME_TEXTURES also holds eight border pieces
+-- (corners, Left/Right/Top/Bottom) that sit OUTSIDE the frame rect; painting those at the reveal
+-- alpha drew a 16 px dark strip beyond the text on every side and read as a "left gap".
 local function ApplyBackgroundLevel(rec, level)
   local restAlpha = UserBackgroundAlpha(rec)
   local r, g, b, revealAlpha = RevealBackgroundRGBA()
   local alpha = restAlpha + (revealAlpha - restAlpha) * level
   for _, tex in ipairs(rec.texturePieces) do
     CancelFade(tex)
-    if level > 0 and tex.SetVertexColor and tex:GetObjectType() == "Texture" then
-      tex:SetVertexColor(r, g, b)
+    if tex == rec.background then
+      if level > 0 and tex.SetVertexColor then tex:SetVertexColor(r, g, b) end
+      tex:SetAlpha(alpha)
+    else
+      -- Border art: stock rest alpha only, never lifted by the reveal. Phase 3 (flat theme)
+      -- will hide these outright.
+      tex:SetAlpha(restAlpha)
     end
-    tex:SetAlpha(alpha)
   end
 end
 
@@ -127,7 +145,8 @@ function Reveal.ApplyChrome(rec)
   if not rec then return end
   local s = Settings.Get()
   local level = WheelRevealLevel(rec)
-  if s.WheelRevealsBackground then
+  local editing = InEditMode()
+  if s.WheelRevealsBackground or editing then
     ApplyBackgroundLevel(rec, level)
   else
     ApplyBackgroundLevel(rec, 0)
@@ -140,7 +159,7 @@ function Reveal.ApplyChrome(rec)
     if s.TabsMatchWindowAlpha then restTabAlpha = TabAlphaSource(rec)
     else restTabAlpha = Client.TabRestAlpha(rec.tab, IsSelectedTab(rec)) end
     local tabAlpha = restTabAlpha
-    if s.WheelRevealsTabs and level > 0 then
+    if (s.WheelRevealsTabs or editing) and level > 0 then
       -- Active tab reveals to full; inactive tabs to half, so the active one reads as the
       -- brightest at a glance (Principle 5: flat tone difference, not a glow).
       local target = IsSelectedTab(rec) and 1 or (s.InactiveTabRevealAlpha or 0.5)
@@ -262,6 +281,16 @@ function Reveal.Init()
   f:RegisterEvent("PLAYER_ENTERING_WORLD")
   f:RegisterEvent("UPDATE_CHAT_WINDOWS")
   f:SetScript("OnEvent", function() if Settings.IsEnabled() then Reveal.ApplyAll(); C_Timer.After(0.5, Reveal.ApplyAll) end end)
+  -- Edit Mode enter / exit: reveal everything on enter, back to rest on exit. Line fading is
+  -- suspended too (Fading.lua listens to the same hooks) so the text stays put while editing.
+  if EditModeManagerFrame and EditModeManagerFrame.HookScript then
+    EditModeManagerFrame:HookScript("OnShow", function()
+      if Settings.IsEnabled() then Reveal.ApplyAll(); if NS.Fading then NS.Fading.ApplyAll() end end
+    end)
+    EditModeManagerFrame:HookScript("OnHide", function()
+      if Settings.IsEnabled() then Reveal.ApplyAll(); if NS.Fading then NS.Fading.ApplyAll() end end
+    end)
+  end
 end
 
 -- Global disable: hand the look back to the stock code.

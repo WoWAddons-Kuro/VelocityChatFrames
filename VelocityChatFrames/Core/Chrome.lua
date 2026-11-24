@@ -52,11 +52,50 @@ function Chrome.ApplyAll()
       if f then if hide then PinHidden(f) else Unpin(f) end end
     end
   end
+  -- With the scroll column hidden, collapse it to zero width AND remove the screen-clamp margin
+  -- that Edit Mode reserves for it. EditModeChatFrameSystemTemplate anchors the Selection box
+  -- at TOPLEFT x=-32 / BOTTOMRIGHT x=+25, and EditModeSystemMixin:UpdateClampOffsets turns that
+  -- into SetClampRectInsets(-32, 25, 60, -32) on ChatFrame1. clampedToScreen then refuses to let
+  -- the frame's left edge reach the screen edge: the 32 px for the (now hidden) column stays
+  -- reserved. That is why neither Edit Mode nor Unlock could drag the window flush left.
+  local collapse = on and s.HideScrollButtons
+  for _, rec in ipairs(Windows.All()) do
+    local bf = rec.buttonFrame
+    if bf then
+      if bf.vcfStockWidth == nil then bf.vcfStockWidth = bf:GetWidth() end
+      if collapse then bf:SetWidth(0.1) else bf:SetWidth(bf.vcfStockWidth > 0 and bf.vcfStockWidth or 29) end
+    end
+    Chrome.ApplyClamp(rec, collapse)
+  end
+  if collapse and FCF_DockUpdate then FCF_DockUpdate() end
+end
+
+-- Zero the left/right clamp insets so the window can sit flush with the screen edge. The top
+-- inset stays (tabs live above the frame); the bottom stays (edit box below it).
+function Chrome.ApplyClamp(rec, collapse)
+  local f = rec.frame
+  if not f.SetClampRectInsets then return end
+  if collapse then
+    local _, _, top, bottom = f:GetClampRectInsets()
+    f:SetClampRectInsets(0, 0, top or 0, bottom or 0)
+  elseif f.UpdateClampOffsets then
+    f:UpdateClampOffsets()       -- Edit Mode system: recompute from its Selection box
+  else
+    f:SetClampRectInsets(0, 0, 0, 0)
+  end
 end
 
 function Chrome.Init()
   Windows.OnNewRecord(function() Chrome.ApplyAll() end)
   if FCF_SetButtonSide then hooksecurefunc("FCF_SetButtonSide", function() if Settings.IsEnabled() then Chrome.ApplyAll() end end) end
+  -- Edit Mode recomputes the clamp from its Selection box on enter, on anchor change and on
+  -- exit (UpdateClampOffsets). Re-apply ours after each so the margin never comes back.
+  if EditModeSystemMixin and EditModeSystemMixin.UpdateClampOffsets and ChatFrame1 and ChatFrame1.UpdateClampOffsets then
+    hooksecurefunc(ChatFrame1, "UpdateClampOffsets", function(frame)
+      local rec = Windows.Get(frame)
+      if rec and Settings.IsEnabled() and Settings.Get().HideScrollButtons then Chrome.ApplyClamp(rec, true) end
+    end)
+  end
   Chrome.ApplyAll()
 end
 

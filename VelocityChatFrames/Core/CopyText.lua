@@ -251,7 +251,6 @@ function CopyText.Init()
       if not Settings.IsEnabled() then return end
       local frame = (FCF_GetChatFrameByID and FCF_GetChatFrameByID(owner:GetID())) or _G["ChatFrame" .. owner:GetID()]
       if not frame or not frame.SetTextCopyable then return end
-      rootDescription:CreateDivider()
       local label = IsOn(frame) and "Disable Selection" or string.format("Enable Selection (temporary, %ds)", CopyText.SELECTION_IDLE_SECS)
       rootDescription:CreateButton(label, function() CopyText.Toggle(frame) end)
     end)

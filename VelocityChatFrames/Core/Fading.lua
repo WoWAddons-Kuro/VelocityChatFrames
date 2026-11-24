@@ -11,7 +11,9 @@ local STOCK_TIME_VISIBLE = 120
 function Fading.ApplyRest(rec)
   if rec.isCombatLog then return end
   local secs = Settings.Get().LineFadeSeconds or 15
-  if secs <= 0 then
+  -- In Edit Mode nothing fades, so the window you are placing shows its text.
+  local editing = NS.Reveal and NS.Reveal.InEditMode and NS.Reveal.InEditMode()
+  if secs <= 0 or editing then
     rec.frame:SetFading(false)
   else
     rec.frame:SetFading(true)

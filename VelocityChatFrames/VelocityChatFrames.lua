@@ -34,6 +34,7 @@ local function OnLogin()
   NS.LineFormat.Init()
   NS.Chrome.Init()
   NS.EditBox.Init()
+  NS.TabMenu.Init()
   NS.CopyText.Init()
   NS.Options.Create()
 
