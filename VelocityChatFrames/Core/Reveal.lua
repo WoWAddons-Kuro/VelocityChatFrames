@@ -91,6 +91,10 @@ function Reveal.Init()
   hooked = true
   hooksecurefunc("FCF_FadeInChatFrame", OnStockFade)
   hooksecurefunc("FCF_FadeOutChatFrame", OnStockFade)
+  -- FCFTab_UpdateAlpha sets the tab alpha directly (dock update, tab select, alert); it runs
+  -- after our pass at login, which left background tabs visible until the next re-apply.
+  if FCFTab_UpdateAlpha then hooksecurefunc("FCFTab_UpdateAlpha", OnStockFade) end
+  if FCFDock_UpdateTabs then hooksecurefunc("FCFDock_UpdateTabs", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
   if FCF_DockUpdate then hooksecurefunc("FCF_DockUpdate", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
   -- Selecting another tab changes which window's alpha the dock's tabs follow.
   if FCFDock_SelectWindow then hooksecurefunc("FCFDock_SelectWindow", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
@@ -98,6 +102,12 @@ function Reveal.Init()
   if FCF_SetWindowAlpha then hooksecurefunc("FCF_SetWindowAlpha", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
   Windows.OnNewRecord(function(rec) if Settings.IsEnabled() then Reveal.ApplyChrome(rec) end end)
   if Settings.IsEnabled() then Reveal.ApplyAll() end
+  -- Stock login layout (FCF_DockUpdate, UPDATE_CHAT_WINDOWS) lands after PLAYER_LOGIN; one more
+  -- pass on entering world and a frame later catches whatever ran after us.
+  local f = CreateFrame("Frame")
+  f:RegisterEvent("PLAYER_ENTERING_WORLD")
+  f:RegisterEvent("UPDATE_CHAT_WINDOWS")
+  f:SetScript("OnEvent", function() if Settings.IsEnabled() then Reveal.ApplyAll(); C_Timer.After(0.5, Reveal.ApplyAll) end end)
 end
 
 -- Global disable: hand the look back to the stock code.
