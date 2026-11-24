@@ -49,13 +49,22 @@ function EditBox.Apply()
 end
 
 -- Hide when idle --------------------------------------------------------------------------
--- Stock IM style leaves the box shown at alpha 0.35 with no focus. We fade it to 0 and turn
--- its mouse off whenever it is not active, and back on activate. Pattern: Prat Editbox.lua
--- (hooks on ChatFrameUtil.ActivateChat / DeactivateChat and the per-box Deactivate method).
+-- Why the box "flashed" on a window click: in classic chatStyle the box lives under each window
+-- and ChatFrameUtil.SetLastActiveWindow / the click-anywhere button Show() it before our deferred
+-- hide ran. Three things fix it:
+--   1. chatStyle = "im": one box at a time, owned by the last-active window, never auto-shown by
+--      a window click (ChatFrameUtil.lua 577-586).
+--   2. The idle look is applied synchronously (no C_Timer.After(0) gap).
+--   3. editBox:Show() is pre-hooked: a box without focus stays at alpha 0 / mouse off, so even a
+--      stock Show() between frames draws nothing.
+local STOCK_CHAT_STYLE = nil      -- captured once so disable can restore it
+
 local function IsActive(box) return box:HasFocus() end
 
+local function Hiding() return Settings.IsEnabled() and Settings.Get().EditBoxHideWhenIdle end
+
 local function SetIdleLook(box)
-  if not (Settings.IsEnabled() and Settings.Get().EditBoxHideWhenIdle) then return end
+  if not Hiding() then return end
   if IsActive(box) then return end
   box:SetAlpha(0)
   box:EnableMouse(false)
@@ -66,18 +75,28 @@ local function SetActiveLook(box)
   box:EnableMouse(true)
 end
 
+local function ApplyChatStyle()
+  if not (C_CVar and C_CVar.GetCVar and C_CVar.SetCVar) then return end
+  if STOCK_CHAT_STYLE == nil then STOCK_CHAT_STYLE = C_CVar.GetCVar("chatStyle") or "classic" end
+  if Settings.IsEnabled() and Settings.Get().EditBoxFloat then
+    if C_CVar.GetCVar("chatStyle") ~= "im" then C_CVar.SetCVar("chatStyle", "im") end
+  else
+    if STOCK_CHAT_STYLE and C_CVar.GetCVar("chatStyle") ~= STOCK_CHAT_STYLE then C_CVar.SetCVar("chatStyle", STOCK_CHAT_STYLE) end
+  end
+end
+
 function EditBox.ApplyIdle()
   for i = 1, (NUM_CHAT_WINDOWS or 10) do
     local box = _G["ChatFrame" .. i .. "EditBox"]
     if box then
-      if Settings.IsEnabled() and Settings.Get().EditBoxHideWhenIdle then SetIdleLook(box) else SetActiveLook(box) end
+      if Hiding() then SetIdleLook(box) else SetActiveLook(box) end
     end
   end
 end
 
 local function HookIdle()
   local onActivate = function(box) if box then SetActiveLook(box) end end
-  local onDeactivate = function(box) if box then C_Timer.After(0, function() SetIdleLook(box) end) end end
+  local onDeactivate = function(box) if box then SetIdleLook(box) end end
   if ChatFrameUtil and ChatFrameUtil.ActivateChat then hooksecurefunc(ChatFrameUtil, "ActivateChat", onActivate) end
   if ChatFrameUtil and ChatFrameUtil.DeactivateChat then hooksecurefunc(ChatFrameUtil, "DeactivateChat", onDeactivate) end
   if ChatEdit_ActivateChat then hooksecurefunc("ChatEdit_ActivateChat", onActivate) end
@@ -88,6 +107,8 @@ local function HookIdle()
       if box.Deactivate then hooksecurefunc(box, "Deactivate", onDeactivate) end
       box:HookScript("OnEditFocusGained", onActivate)
       box:HookScript("OnEditFocusLost", onDeactivate)
+      -- Stock Show() on an unfocused box (SetLastActiveWindow, click-anywhere) must not draw.
+      box:HookScript("OnShow", function(self) if not IsActive(self) then SetIdleLook(self) end end)
     end
   end
 end
@@ -95,6 +116,7 @@ end
 -- Stock code re-anchors the box when the selected tab changes (ChatFrameUtil.SetLastActiveWindow,
 -- FCF_SetButtonSide / FCF_DockUpdate). Re-apply after each.
 function EditBox.Init()
+  ApplyChatStyle()
   HookIdle()
   EditBox.ApplyIdle()
   if ChatFrameUtil and ChatFrameUtil.SetLastActiveWindow then hooksecurefunc(ChatFrameUtil, "SetLastActiveWindow", EditBox.Apply) end
@@ -104,5 +126,5 @@ function EditBox.Init()
   EditBox.Apply()
 end
 
-for _, k in ipairs({ "Enabled", "EditBoxFloat", "EditBoxLocked" }) do Settings.OnChange(k, EditBox.Apply) end
+for _, k in ipairs({ "Enabled", "EditBoxFloat", "EditBoxLocked" }) do Settings.OnChange(k, function() ApplyChatStyle(); EditBox.Apply() end) end
 for _, k in ipairs({ "Enabled", "EditBoxHideWhenIdle" }) do Settings.OnChange(k, EditBox.ApplyIdle) end

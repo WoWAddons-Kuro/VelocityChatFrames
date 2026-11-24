@@ -117,6 +117,65 @@ function Options.Create()
   ch:Add(Check(ch, "TabsMatchWindowAlpha", "Tabs use the window's background alpha", "Chat tabs are as transparent as their window's background. Unticked: the game's own per-tab alpha."), 26, -10)
   ch:Add(Check(ch, "WheelRevealsBackground", "Reveal window background on mouse wheel over window", "A wheel turn over a chat window shows its background for a few seconds. Moving the pointer never does."), 26)
   ch:Add(Check(ch, "WheelRevealsTabs", "Reveal window tabs on mouse wheel over window", "A wheel turn over a chat window shows its tabs (the whole dock's, if docked) for a few seconds so they can be clicked."), 26)
+
+  -- Revealed background colour + opacity: a swatch that opens the stock colour picker, and an
+  -- opacity slider. Stored as RevealBackground = { r, g, b, a } where a is alpha = opacity
+  -- (0.3 means 30 % visible paint, 70 % world shows through).
+  do
+    local row = CreateFrame("Frame", nil, ch); row:SetSize(BOX_W - 2 * PAD, 24)
+    local label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight"); label:SetPoint("LEFT", 4, 0)
+    label:SetText("Revealed background colour")
+    local swatch = CreateFrame("Button", nil, row)
+    swatch:SetSize(20, 20); swatch:SetPoint("LEFT", label, "RIGHT", 10, 0)
+    local border = swatch:CreateTexture(nil, "BACKGROUND"); border:SetAllPoints(); border:SetColorTexture(0.7, 0.7, 0.7, 1)
+    local fill = swatch:CreateTexture(nil, "ARTWORK"); fill:SetPoint("TOPLEFT", 2, -2); fill:SetPoint("BOTTOMRIGHT", -2, 2)
+    local function cur() return db().RevealBackground or { r = 0, g = 0, b = 0, a = 0.3 } end
+    local function paint() local c = cur(); fill:SetColorTexture(c.r, c.g, c.b, 1) end
+    swatch:SetScript("OnClick", function()
+      local c = cur()
+      local prev = { r = c.r, g = c.g, b = c.b }
+      local function apply()
+        local r, g, b = ColorPickerFrame:GetColorRGB()
+        db().RevealBackground = { r = r, g = g, b = b, a = cur().a }
+        paint(); NS.OnSettingChanged("RevealBackground")
+      end
+      local function cancel()
+        db().RevealBackground = { r = prev.r, g = prev.g, b = prev.b, a = cur().a }
+        paint(); NS.OnSettingChanged("RevealBackground")
+      end
+      if ColorPickerFrame.SetupColorPickerAndShow then
+        ColorPickerFrame:SetupColorPickerAndShow({ r = c.r, g = c.g, b = c.b, hasOpacity = false, swatchFunc = apply, cancelFunc = cancel })
+      else
+        ColorPickerFrame.func, ColorPickerFrame.cancelFunc, ColorPickerFrame.hasOpacity = apply, cancel, false
+        ColorPickerFrame:SetColorRGB(c.r, c.g, c.b); ColorPickerFrame:Show()
+      end
+    end)
+    row.Update = paint
+    widgets[#widgets + 1] = row
+    ch:Add(row, 24, -8)
+
+    local holder = CreateFrame("Frame", nil, ch); holder:SetSize(BOX_W - 2 * PAD, 44)
+    local sl = holder:CreateFontString(nil, "ARTWORK", "GameFontHighlight"); sl:SetPoint("TOPLEFT", 4, 0)
+    local s = CreateFrame("Slider", "VelocityChatFramesOptRevealAlpha", holder, "OptionsSliderTemplate")
+    s:SetPoint("TOPLEFT", sl, "BOTTOMLEFT", 2, -6); s:SetWidth(220)
+    s:SetMinMaxValues(0, 100); s:SetValueStep(5); s:SetObeyStepOnDrag(true)
+    _G[s:GetName() .. "Low"]:SetText("0"); _G[s:GetName() .. "High"]:SetText("100"); _G[s:GetName() .. "Text"]:SetText("")
+    local function lbl(v) return string.format("Revealed background opacity: %d%% (0 = invisible, 100 = solid)", v) end
+    s:SetScript("OnValueChanged", function(self, v)
+      v = math.floor(v / 5 + 0.5) * 5
+      local c = cur(); if math.floor(c.a * 100 + 0.5) == v then return end
+      db().RevealBackground = { r = c.r, g = c.g, b = c.b, a = v / 100 }
+      sl:SetText(lbl(v)); NS.OnSettingChanged("RevealBackground")
+    end)
+    holder.Update = function() local v = math.floor(cur().a * 100 + 0.5); s:SetValue(v); sl:SetText(lbl(v)) end
+    widgets[#widgets + 1] = holder
+    ch:Add(holder, 44, -6)
+
+    ch:Add(Slider(ch, "VelocityChatFramesOptRevealBoost", "RevealBrightZoneBoost", 0.3, 0, 0.7, 0.05,
+      function(v) return string.format("Opacity boost in bright zones: +%d%% (sand, snow, pale rock; LibZoneBrightness)", math.floor(v * 100 + 0.5)) end), 44, -6)
+    ch:Add(Slider(ch, "VelocityChatFramesOptInactiveTab", "InactiveTabRevealAlpha", 0.5, 0.1, 1, 0.05,
+      function(v) return string.format("Inactive tabs reveal to %d%% (active tab is always 100%%)", math.floor(v * 100 + 0.5)) end), 44, -6)
+  end
   local first = false
   for _, item in ipairs(NS.Chrome.ITEMS) do
     ch:Add(Check(ch, item.key, item.label, item.tip), 26, first and -10 or nil)

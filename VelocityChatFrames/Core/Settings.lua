@@ -28,6 +28,12 @@ Settings.DEFAULTS = {
   TabsMatchWindowAlpha = true,
   WheelRevealsBackground = true,
   WheelRevealsTabs = true,
+  -- Revealed background: black at 0.3 alpha (= 30 % opaque, 70 % see-through)
+  RevealBackground = { r = 0, g = 0, b = 0, a = 0.3 },
+  -- Added to the alpha above when LibZoneBrightness says the terrain is "bright"
+  RevealBrightZoneBoost = 0.3,
+  -- Unselected tabs reveal to this alpha (selected tab goes to 1.0) so active reads at a glance
+  InactiveTabRevealAlpha = 0.5,
   HideMenuButton = true,
   HideSocialButton = true,
   HideChannelButton = true,

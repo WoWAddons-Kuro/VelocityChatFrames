@@ -61,16 +61,64 @@ function Reveal.SetTabInteractive(rec, on)
   -- Button frame does. Dragging a tab (re-dock) also goes through the tab, so it is off too.
 end
 
--- Wheel reveal: a mouse-wheel turn over a window shows its background and/or tabs for
--- WHEEL_REVEAL_SECS, then they return to rest. Pointer motion never reveals (Principle 2);
+-- Wheel reveal: a mouse-wheel turn over a window shows its background and/or tabs. They appear
+-- at once and then follow the SAME timing as the chat lines: fully shown for LineFadeSeconds,
+-- then fading out over the stock line fade duration. Pointer motion never reveals (Principle 2);
 -- the wheel is a deliberate act and is the one input the frame takes at rest.
-local WHEEL_REVEAL_SECS = 3
-local WHEEL_REVEAL_ALPHA = 1.0
-local wheelRevealedUntil = {}    -- rec -> GetTime() deadline
+local wheelRevealedAt = {}       -- rec -> GetTime() of the last wheel turn
 
-local function IsWheelRevealed(rec)
-  local t = wheelRevealedUntil[rec]
-  return t and t > GetTime()
+local function LineFadeDurationSecs(rec)
+  local d = rec.frame.GetFadeDuration and rec.frame:GetFadeDuration()
+  return (type(d) == "number" and d > 0) and d or 3
+end
+
+local function WheelHoldSecs()
+  local secs = Settings.Get().LineFadeSeconds or 15
+  if secs <= 0 then secs = 15 end   -- "lines never fade" still needs a finite reveal
+  return secs
+end
+
+-- 0 = at rest, 1 = fully revealed, in between = fading out. Mirrors
+-- ScrollingMessageFrameMixin:CalculateLineAlphaValueFromTimestamp.
+local function WheelRevealLevel(rec)
+  local t0 = wheelRevealedAt[rec]
+  if not t0 then return 0 end
+  local age = GetTime() - t0
+  local hold = WheelHoldSecs()
+  if age <= hold then return 1 end
+  local fade = LineFadeDurationSecs(rec)
+  if age >= hold + fade then wheelRevealedAt[rec] = nil; return 0 end
+  return 1 - (age - hold) / fade
+end
+
+-- Revealed background: user colour and alpha (defaults black at 30 % alpha = 30 % opaque).
+-- The configured value is for normal/dark zones; on bright terrain (LibZoneBrightness band
+-- "bright") RevealBrightZoneBoost is ADDED to the alpha so the text keeps a backing on sand.
+local ZB = LibStub and LibStub("LibZoneBrightness-1.0", true)
+
+local function RevealBackgroundRGBA()
+  local s = Settings.Get()
+  local c = s.RevealBackground or { r = 0, g = 0, b = 0, a = 0.3 }
+  local a = c.a or 0.3
+  if ZB and ZB:GetBand() == "bright" then
+    a = a + (s.RevealBrightZoneBoost or 0.3)
+  end
+  if a > 1 then a = 1 end
+  return c.r or 0, c.g or 0, c.b or 0, a
+end
+
+-- Set the texture pieces to the revealed look blended toward the rest look by level (0..1).
+local function ApplyBackgroundLevel(rec, level)
+  local restAlpha = UserBackgroundAlpha(rec)
+  local r, g, b, revealAlpha = RevealBackgroundRGBA()
+  local alpha = restAlpha + (revealAlpha - restAlpha) * level
+  for _, tex in ipairs(rec.texturePieces) do
+    CancelFade(tex)
+    if level > 0 and tex.SetVertexColor and tex:GetObjectType() == "Texture" then
+      tex:SetVertexColor(r, g, b)
+    end
+    tex:SetAlpha(alpha)
+  end
 end
 
 -- What every piece of this window should look like at rest. Phase 2 (states) and Phase 3 (theme)
@@ -78,17 +126,27 @@ end
 function Reveal.ApplyChrome(rec)
   if not rec then return end
   local s = Settings.Get()
-  local revealed = IsWheelRevealed(rec)
-  local bgAlpha = (revealed and s.WheelRevealsBackground) and WHEEL_REVEAL_ALPHA or UserBackgroundAlpha(rec)
-  for _, tex in ipairs(rec.texturePieces) do SetAlphaQuiet(tex, bgAlpha) end
+  local level = WheelRevealLevel(rec)
+  if s.WheelRevealsBackground then
+    ApplyBackgroundLevel(rec, level)
+  else
+    ApplyBackgroundLevel(rec, 0)
+  end
 
   if rec.tab then
     -- TabsMatchWindowAlpha: every tab in a dock sits at the displayed window's background alpha,
     -- so a near-invisible window has near-invisible tabs. Off = the stock per-tab no-mouse alpha.
-    local tabAlpha
-    if revealed and s.WheelRevealsTabs then tabAlpha = WHEEL_REVEAL_ALPHA
-    elseif s.TabsMatchWindowAlpha then tabAlpha = TabAlphaSource(rec)
-    else tabAlpha = Client.TabRestAlpha(rec.tab, IsSelectedTab(rec)) end
+    local restTabAlpha
+    if s.TabsMatchWindowAlpha then restTabAlpha = TabAlphaSource(rec)
+    else restTabAlpha = Client.TabRestAlpha(rec.tab, IsSelectedTab(rec)) end
+    local tabAlpha = restTabAlpha
+    if s.WheelRevealsTabs and level > 0 then
+      -- Active tab reveals to full; inactive tabs to half, so the active one reads as the
+      -- brightest at a glance (Principle 5: flat tone difference, not a glow).
+      local target = IsSelectedTab(rec) and 1 or (s.InactiveTabRevealAlpha or 0.5)
+      if target < restTabAlpha then target = restTabAlpha end
+      tabAlpha = restTabAlpha + (target - restTabAlpha) * level
+    end
     SetAlphaQuiet(rec.tab, tabAlpha)
     Reveal.SetTabInteractive(rec, tabAlpha > TAB_HIDDEN_ALPHA)
   end
@@ -128,20 +186,47 @@ local function DockMates(rec)
   return { rec }
 end
 
+-- One ticker drives the fade-out for every window that is currently revealed. It runs only
+-- while something is fading (hold phase needs no ticks) and stops on its own.
+local fadeTicker = nil
+
+local function AnyWheelRevealed()
+  for rec, t0 in pairs(wheelRevealedAt) do
+    if t0 then return true end
+  end
+  return false
+end
+
+local function FadeTick()
+  if not Settings.IsEnabled() then
+    if fadeTicker then fadeTicker:Cancel(); fadeTicker = nil end
+    return
+  end
+  for rec in pairs(wheelRevealedAt) do Reveal.ApplyChrome(rec) end   -- ApplyChrome clears finished ones
+  if not AnyWheelRevealed() then
+    if fadeTicker then fadeTicker:Cancel(); fadeTicker = nil end
+  end
+end
+
+local function EnsureFadeTicker(rec)
+  -- Sleep through the hold phase, then tick ~20 Hz during the fade.
+  local delay = WheelHoldSecs()
+  C_Timer.After(delay, function()
+    if fadeTicker then return end
+    if not AnyWheelRevealed() then return end
+    fadeTicker = C_Timer.NewTicker(0.05, FadeTick)
+  end)
+end
+
 local function OnWheel(frame)
   if not Settings.IsEnabled() then return end
   local s = Settings.Get()
   if not (s.WheelRevealsBackground or s.WheelRevealsTabs) then return end
   local rec = Windows.Get(frame)
   if not rec then return end
-  local deadline = GetTime() + WHEEL_REVEAL_SECS
-  local mates = DockMates(rec)
-  for _, r in ipairs(mates) do wheelRevealedUntil[r] = deadline; Reveal.ApplyChrome(r) end
-  C_Timer.After(WHEEL_REVEAL_SECS + 0.05, function()
-    for _, r in ipairs(mates) do
-      if not IsWheelRevealed(r) then wheelRevealedUntil[r] = nil; Reveal.ApplyChrome(r) end
-    end
-  end)
+  local now = GetTime()
+  for _, r in ipairs(DockMates(rec)) do wheelRevealedAt[r] = now; Reveal.ApplyChrome(r) end
+  EnsureFadeTicker(rec)
 end
 
 local function OnStockFade(chatFrame)
@@ -191,3 +276,10 @@ NS.Settings.OnChange("Enabled", function()
   if Settings.IsEnabled() then Reveal.ApplyAll() else Reveal.Restore() end
 end)
 NS.Settings.OnChange("TabsMatchWindowAlpha", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end)
+NS.Settings.OnChange("RevealBackground", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end)
+NS.Settings.OnChange("RevealBrightZoneBoost", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end)
+NS.Settings.OnChange("InactiveTabRevealAlpha", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end)
+-- Zone band changed: a reveal in progress re-reads its alpha on the next tick; nothing to do at rest.
+if ZB and ZB.RegisterCallback then
+  ZB:RegisterCallback(function() if Settings.IsEnabled() then Reveal.ApplyAll() end end)
+end
