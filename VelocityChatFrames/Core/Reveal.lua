@@ -77,7 +77,9 @@ end
 
 function Reveal.ApplyAll()
   for _, rec in ipairs(Windows.All()) do
-    if rec.frame:IsShown() then Reveal.ApplyChrome(rec) end
+    -- Unselected docked windows are HIDDEN (FCF_DockUpdate) but their tabs are shown, so
+    -- IsShown() alone skipped exactly the tabs that stayed visible at login.
+    if rec.frame:IsShown() or rec.frame.isDocked then Reveal.ApplyChrome(rec) end
   end
 end
 
