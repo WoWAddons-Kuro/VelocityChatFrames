@@ -195,6 +195,17 @@ local function GetCopyWindow()
   scroll:SetScrollChild(box)
   scroll:SetScript("OnSizeChanged", function(self, w) box:SetWidth(w) end)
   win.box = box
+  win.scroll = scroll
+  -- Explicit minimum height: a multi-line EditBox with derived height can be 0 on its first
+  -- layout pass, and a 0-height scroll child draws nothing. Also pin width now (the scroll frame
+  -- has a real size by the time this runs on first use).
+  local function FitBox()
+    local w, h = scroll:GetWidth(), scroll:GetHeight()
+    if w and w > 0 then box:SetWidth(w) end
+    if h and h > 0 and (box:GetHeight() or 0) < h then box:SetHeight(h) end
+  end
+  scroll:SetScript("OnSizeChanged", function() FitBox() end)
+  FitBox()
 
   local function SelectAll()
     box:SetFocus()
@@ -234,10 +245,31 @@ local function ShowCopyWindow(frame, text)
   local win = GetCopyWindow()
   win.vcfSelectionFrame = frame
   win.box.vcfText = text
+  win.scroll:SetVerticalScroll(0)
   win.box:SetText(text)
   win.count:SetText(string.format("%d characters, %d lines", #text, select(2, text:gsub("\n", "")) + 1))
   win.title:SetText(string.format("Selected text from %s", frame.name or frame:GetName()))
-  if win:IsShown() then win.SelectAll() else win:Show() end
+  win.vcfShowSerial = (win.vcfShowSerial or 0) + 1
+  local serial = win.vcfShowSerial
+  if not win:IsShown() then win:Show() end   -- OnShow also schedules SelectAll; harmless twice
+  win.SelectAll()
+  -- Re-assert next frame: SetText on a multi-line EditBox lays out asynchronously, and anything
+  -- that took keyboard focus in between (chat edit box activation etc.) would leave us unfocused.
+  C_Timer.After(0, function()
+    if win.vcfShowSerial ~= serial or not win:IsShown() then return end
+    win.SelectAll()
+  end)
+  if CopyText.debug then
+    C_Timer.After(0.15, function()
+      if win.vcfShowSerial ~= serial then return end
+      local box = win.box
+      local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+      Util.Print("copy: shown=%s boxText=%d focus=%s height=%.0f/%.0f scroll=%.0f alpha=%.2f",
+        tostring(win:IsShown()), #(box:GetText() or ""),
+        focus and ((focus.GetName and focus:GetName()) or "unnamed") or "none",
+        box:GetHeight() or 0, win.scroll:GetHeight() or 0, win.scroll:GetVerticalScroll() or 0, box:GetAlpha() or 1)
+    end)
+  end
   Touch()
 end
 
@@ -248,17 +280,41 @@ end
 -- Replace the stock mouse-up (which calls the protected CopyToClipboard) for the active frame:
 -- pre-hook OnMouseUp, gather the text ourselves, then cancel the stock selection so its own
 -- handler finds nothing to copy.
+-- Markup strip, link-first: a chat line nests |cff..|Hitem:..|h[Name]|h|r, so resolve links
+-- before colours; a colour code that survives is rendered live by the EditBox and, lacking its
+-- |r, bleeds into the following lines. Handles |cffRRGGBB, |cnNAME: and |cAARRGGBB forms.
+local function StripMarkup(text)
+  text = text:gsub("|H.-|h(.-)|h", "%1")
+  text = text:gsub("|T.-|t", ""):gsub("|A.-|a", "")
+  text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn[^:]-:", ""):gsub("|c%x%x%x%x%x%x", "")
+  text = text:gsub("|r", "")
+  return text
+end
+CopyText.StripMarkup = StripMarkup
+
 function OnMouseUpPre(frame, button)
   if button ~= "LeftButton" or not IsOn(frame) then return end
   if not (frame.IsSelectingText and frame:IsSelectingText()) then return end
   local x, y = frame:GetScaledCursorPosition()
   local ok, text = pcall(frame.GatherSelectedText, frame, x, y)
   frame:ResetSelectingText()        -- stock OnPostMouseUp now sees IsSelectingText() == false
-  if ok and text and text ~= "" then
-    -- strip |c..|r colour codes and |H..|h links like REMOVE_MARKUP would
-    text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h(.-)|h", "%1"):gsub("|T.-|t", "")
-    StageForClipboard(frame, text)
+  if not ok then
+    if CopyText.debug then Util.Print("copy: GatherSelectedText failed: %s", tostring(text)) end
+    return
   end
+  if Util.IsSecret(text) then
+    ShowToast(frame, "selected text is protected on this client")
+    return
+  end
+  local rawLen = type(text) == "string" and #text or -1
+  text = type(text) == "string" and StripMarkup(text) or ""
+  if text:match("^%s*$") then
+    -- Empty / whitespace-only selection: click without drag, or drag across blank space.
+    if CopyText.debug then Util.Print("copy: empty selection (raw %d chars)", rawLen) end
+    return
+  end
+  if CopyText.debug then Util.Print("copy: gathered raw %d -> stripped %d chars", rawLen, #text) end
+  StageForClipboard(frame, text)
 end
 
 local function OnCopied(frame, text, numCopied)

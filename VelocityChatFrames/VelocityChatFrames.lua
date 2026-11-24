@@ -15,6 +15,9 @@ end
 local function SlashHandler(msg)
   msg = (msg or ""):lower():match("^%s*(.-)%s*$")
   if msg == "status" then Status()
+  elseif msg == "copydebug" then
+    NS.CopyText.debug = not NS.CopyText.debug
+    Util.Print("copy debug=%s", tostring(NS.CopyText.debug))
   elseif msg:match("^copy") then
     NS.CopyText.SlashToggle(msg:match("^copy%s*(%d*)"))
   elseif msg:match("^test") then
@@ -27,6 +30,9 @@ local function SlashHandler(msg)
 end
 
 local function OnLogin()
+  local other = NS.Conflict.Detect()
+  if other then NS.Conflict.Enter(other); return end
+
   NS.Settings.Init()
   NS.PlayerData.Init()
   NS.Windows.Init()
