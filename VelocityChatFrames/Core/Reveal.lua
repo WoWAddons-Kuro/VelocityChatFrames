@@ -115,6 +115,35 @@ function Reveal.ApplyAll()
   end
 end
 
+-- A wheel turn over a window: reveal that window and, if docked, every tab in its dock.
+local function DockMates(rec)
+  if rec.frame.isDocked and FCFDock_GetChatFrames and GENERAL_CHAT_DOCK then
+    local out = {}
+    for _, f in ipairs(FCFDock_GetChatFrames(GENERAL_CHAT_DOCK)) do
+      local r = Windows.Get(f)
+      if r then table.insert(out, r) end
+    end
+    return out
+  end
+  return { rec }
+end
+
+local function OnWheel(frame)
+  if not Settings.IsEnabled() then return end
+  local s = Settings.Get()
+  if not (s.WheelRevealsBackground or s.WheelRevealsTabs) then return end
+  local rec = Windows.Get(frame)
+  if not rec then return end
+  local deadline = GetTime() + WHEEL_REVEAL_SECS
+  local mates = DockMates(rec)
+  for _, r in ipairs(mates) do wheelRevealedUntil[r] = deadline; Reveal.ApplyChrome(r) end
+  C_Timer.After(WHEEL_REVEAL_SECS + 0.05, function()
+    for _, r in ipairs(mates) do
+      if not IsWheelRevealed(r) then wheelRevealedUntil[r] = nil; Reveal.ApplyChrome(r) end
+    end
+  end)
+end
+
 local function OnStockFade(chatFrame)
   if not Settings.IsEnabled() then return end
   Reveal.ApplyChrome(Windows.Get(chatFrame))
@@ -134,7 +163,13 @@ function Reveal.Init()
   if FCFDock_SelectWindow then hooksecurefunc("FCFDock_SelectWindow", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
   -- A window alpha change in the stock menu must re-flow to the tabs too.
   if FCF_SetWindowAlpha then hooksecurefunc("FCF_SetWindowAlpha", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
-  Windows.OnNewRecord(function(rec) if Settings.IsEnabled() then Reveal.ApplyChrome(rec) end end)
+  local function hookWheel(rec)
+    if rec.frame.vcfWheelHooked then return end
+    rec.frame.vcfWheelHooked = true
+    rec.frame:HookScript("OnMouseWheel", OnWheel)
+  end
+  for _, rec in ipairs(Windows.All()) do hookWheel(rec) end
+  Windows.OnNewRecord(function(rec) hookWheel(rec); if Settings.IsEnabled() then Reveal.ApplyChrome(rec) end end)
   if Settings.IsEnabled() then Reveal.ApplyAll() end
   -- Stock login layout (FCF_DockUpdate, UPDATE_CHAT_WINDOWS) lands after PLAYER_LOGIN; one more
   -- pass on entering world and a frame later catches whatever ran after us.
