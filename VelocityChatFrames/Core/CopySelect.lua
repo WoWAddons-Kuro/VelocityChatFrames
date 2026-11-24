@@ -16,6 +16,9 @@ NS.CopySelect = CopySelect
 local EDGE_SCROLL_SLOWEST_SECS = 0.16   -- one line per this many seconds just past the edge
 local EDGE_SCROLL_FASTEST_SECS = 0.02   -- one line per this many seconds far past the edge
 local EDGE_SCROLL_RAMP_PIXELS  = 300    -- distance past the edge at which the fastest rate is reached
+local EDGE_WIGGLE_FULL_PIXELS    = 400  -- accumulated cursor motion (px) that counts as a "full" wiggle
+local EDGE_WIGGLE_DECAY_PER_SEC  = 600  -- px of wiggle energy that drains away per second when the cursor is still
+local EDGE_WIGGLE_MAX_BOOST      = 0.75 -- a full wiggle cuts the scroll interval by this fraction (4x faster)
 
 -- Slot/line comparisons: visibleLines index grows away from the insert edge, so with BOTTOM insert mode a
 -- larger index is higher on screen; with TOP insert mode a larger index is lower. messageIndex = slot +
@@ -135,17 +138,34 @@ local function OnMouseUpPost(frame, button)
 end
 
 -- Edge auto-scroll while the button is held: past the top -> older lines; past the bottom -> newer.
+-- Speed has two inputs: distance past the edge (ramp), and wiggle - recent horizontal/vertical motion of the
+-- cursor while it is past the edge. Wiggle is tracked as a decaying "energy": each tick adds the pixels moved
+-- since the last tick, then the pool drains at EDGE_WIGGLE_DECAY_PER_SEC. One full wiggle pool shortens the
+-- interval by up to EDGE_WIGGLE_MAX_BOOST (fraction of the current interval).
 local function OnUpdatePost(frame)
   if not frame:IsSelectingText() or not EnsureAnchor(frame) then return end
-  local _, y = frame:GetScaledCursorPosition()
+  local x, y = frame:GetScaledCursorPosition()
   local top, bottom = frame:GetTop(), frame:GetBottom()
   if not (top and bottom) then return end
   local distance, direction
-  if y > top then distance, direction = y - top, 1 elseif y < bottom then distance, direction = bottom - y, -1 else return end
+  if y > top then distance, direction = y - top, 1 elseif y < bottom then distance, direction = bottom - y, -1 else
+    frame.vcfWiggleEnergy, frame.vcfWiggleLastX, frame.vcfWiggleLastY = 0, nil, nil
+    return
+  end
   local now = GetTime()
+  -- Wiggle energy: accumulate motion every frame (not only on scroll ticks), drain continuously.
+  local lastX, lastY, lastT = frame.vcfWiggleLastX, frame.vcfWiggleLastY, frame.vcfWiggleLastT or now
+  local energy = frame.vcfWiggleEnergy or 0
+  if lastX then energy = energy + math.abs(x - lastX) + math.abs(y - lastY) end
+  energy = math.max(0, energy - EDGE_WIGGLE_DECAY_PER_SEC * (now - lastT))
+  energy = math.min(energy, EDGE_WIGGLE_FULL_PIXELS)
+  frame.vcfWiggleEnergy, frame.vcfWiggleLastX, frame.vcfWiggleLastY, frame.vcfWiggleLastT = energy, x, y, now
   if now < (frame.vcfEdgeScrollNextAt or 0) then return end
   local ramp = math.min(distance / EDGE_SCROLL_RAMP_PIXELS, 1)
-  frame.vcfEdgeScrollNextAt = now + EDGE_SCROLL_SLOWEST_SECS - (EDGE_SCROLL_SLOWEST_SECS - EDGE_SCROLL_FASTEST_SECS) * ramp
+  local interval = EDGE_SCROLL_SLOWEST_SECS - (EDGE_SCROLL_SLOWEST_SECS - EDGE_SCROLL_FASTEST_SECS) * ramp
+  local wiggle = energy / EDGE_WIGGLE_FULL_PIXELS
+  interval = interval * (1 - EDGE_WIGGLE_MAX_BOOST * wiggle)
+  frame.vcfEdgeScrollNextAt = now + interval
   if IsTopInsert(frame) then direction = -direction end   -- TOP mode: older lines are at the top too, but slot 1 is the top
   if direction > 0 then frame:ScrollUp() else frame:ScrollDown() end
   frame:RefreshIfNecessary()
