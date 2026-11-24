@@ -61,7 +61,11 @@ local STOCK_CHAT_STYLE = nil      -- captured once so disable can restore it
 
 local function IsActive(box) return box:HasFocus() end
 
-local function Hiding() return Settings.IsEnabled() and Settings.Get().EditBoxHideWhenIdle end
+-- Never hide while Edit Mode is open: the box is being placed and must be seen.
+local function Hiding()
+  if NS.EditModeLayout and NS.EditModeLayout.IsEditing and NS.EditModeLayout.IsEditing() then return false end
+  return Settings.IsEnabled() and Settings.Get().EditBoxHideWhenIdle
+end
 
 local function SetIdleLook(box)
   if not Hiding() then return end

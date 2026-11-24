@@ -54,11 +54,49 @@ local function OnTabDragStop(tab)
   if NS.EditBox and NS.EditBox.Apply then NS.EditBox.Apply() end
 end
 
+-- Resize grip: shown in the bottom-right while unlocked. Stock hides ChatFrame1's own
+-- ResizeButton permanently (PrimaryChatFrameMixin:OnLoad) and only Edit Mode's grip resizes it,
+-- so we make our own. It drives the stock resize path (StartSizing on the frame) so the
+-- ScrollingMessageFrame re-lays its lines as the frame grows.
+local VCF_PrimaryResizeGrip = nil
+
+local function GetResizeGrip()
+  if VCF_PrimaryResizeGrip then return VCF_PrimaryResizeGrip end
+  local f = Primary()
+  local grip = CreateFrame("Button", "VelocityChatFramesPrimaryResizeGrip", f)
+  grip:SetSize(16, 16)
+  grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+  grip:SetFrameStrata("HIGH")
+  grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+  grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+  grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+  grip:SetScript("OnMouseDown", function(self)
+    local frame = Primary()
+    frame:SetResizable(true)
+    frame:StartSizing("BOTTOMRIGHT")
+    self.vcfSizing = true
+  end)
+  grip:SetScript("OnMouseUp", function(self)
+    if not self.vcfSizing then return end
+    self.vcfSizing = nil
+    local frame = Primary()
+    frame:StopMovingOrSizing()
+    SavePrimaryPosition()
+    if FCF_DockUpdate then FCF_DockUpdate() end
+    if NS.EditBox and NS.EditBox.Apply then NS.EditBox.Apply() end
+  end)
+  grip:Hide()
+  VCF_PrimaryResizeGrip = grip
+  return grip
+end
+
 function TabMenu.SetPrimaryUnlocked(on)
   VCF_PrimaryUnlocked = on and true or false
   local f, tab = Primary(), PrimaryTab()
   if not (f and tab) then return end
   f:SetMovable(VCF_PrimaryUnlocked)
+  f:SetResizable(VCF_PrimaryUnlocked)
+  local grip = GetResizeGrip()
   if VCF_PrimaryUnlocked then
     tab:RegisterForDrag("LeftButton")
     if not tab.vcfDragHooked then
@@ -69,9 +107,12 @@ function TabMenu.SetPrimaryUnlocked(on)
     -- The tab must take mouse to be dragged, whatever its alpha.
     tab:EnableMouse(true)
     tab.vcfMouseOn = true
-    Util.Print("General window unlocked: drag it by its tab. Lock again from the tab menu.")
+    grip:Show()
+    Util.Print("General window unlocked: drag it by its tab, resize with the grip at the bottom-right. Lock again from the tab menu.")
   else
     if tab.vcfDragging then OnTabDragStop(tab) end
+    if grip.vcfSizing then grip:GetScript("OnMouseUp")(grip) end
+    grip:Hide()
     if NS.Reveal then NS.Reveal.ApplyAll() end
   end
 end

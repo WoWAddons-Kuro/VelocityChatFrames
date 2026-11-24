@@ -177,7 +177,7 @@ function Options.Create()
       function(v) return string.format("Inactive tabs reveal to %d%% (active tab is always 100%%)", math.floor(v * 100 + 0.5)) end), 44, -6)
   end
   local first = false
-  for _, item in ipairs(NS.Chrome.ITEMS) do
+  for _, item in ipairs(NS.HideButtons.ITEMS) do
     ch:Add(Check(ch, item.key, item.label, item.tip), 26, first and -10 or nil)
     first = false
   end

@@ -8,6 +8,7 @@
 ## X-Website: https://github.com/WoWAddons-Kuro/VelocityChatFrames
 
 Libs\LibStub\LibStub.lua
+Libs\LibEditMode\embed.xml
 Libs\LibZoneBrightness\LibZoneBrightness-1.0.lua
 
 Core\Util.lua
@@ -24,7 +25,8 @@ Core\Sticky.lua
 Core\Fading.lua
 Core\PlayerData.lua
 Core\LineFormat.lua
-Core\Chrome.lua
+Core\HideButtons.lua
+Core\EditModeLayout.lua
 Core\EditBox.lua
 Core\TabMenu.lua
 Core\CopyText.lua
