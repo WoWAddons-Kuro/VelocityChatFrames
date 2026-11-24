@@ -26,6 +26,8 @@ Settings.DEFAULTS = {
 
   -- Chrome (03_Behaviour)
   TabsMatchWindowAlpha = true,
+  WheelRevealsBackground = true,
+  WheelRevealsTabs = true,
   HideMenuButton = true,
   HideSocialButton = true,
   HideChannelButton = true,

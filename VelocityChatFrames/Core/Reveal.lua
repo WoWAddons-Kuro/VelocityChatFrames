@@ -61,17 +61,34 @@ function Reveal.SetTabInteractive(rec, on)
   -- Button frame does. Dragging a tab (re-dock) also goes through the tab, so it is off too.
 end
 
+-- Wheel reveal: a mouse-wheel turn over a window shows its background and/or tabs for
+-- WHEEL_REVEAL_SECS, then they return to rest. Pointer motion never reveals (Principle 2);
+-- the wheel is a deliberate act and is the one input the frame takes at rest.
+local WHEEL_REVEAL_SECS = 3
+local WHEEL_REVEAL_ALPHA = 1.0
+local wheelRevealedUntil = {}    -- rec -> GetTime() deadline
+
+local function IsWheelRevealed(rec)
+  local t = wheelRevealedUntil[rec]
+  return t and t > GetTime()
+end
+
 -- What every piece of this window should look like at rest. Phase 2 (states) and Phase 3 (theme)
 -- will consult NS.State / NS.Theme here; Phase 0 reproduces the stock no-mouse look exactly.
 function Reveal.ApplyChrome(rec)
   if not rec then return end
-  local bgAlpha = UserBackgroundAlpha(rec)
+  local s = Settings.Get()
+  local revealed = IsWheelRevealed(rec)
+  local bgAlpha = (revealed and s.WheelRevealsBackground) and WHEEL_REVEAL_ALPHA or UserBackgroundAlpha(rec)
   for _, tex in ipairs(rec.texturePieces) do SetAlphaQuiet(tex, bgAlpha) end
 
   if rec.tab then
     -- TabsMatchWindowAlpha: every tab in a dock sits at the displayed window's background alpha,
     -- so a near-invisible window has near-invisible tabs. Off = the stock per-tab no-mouse alpha.
-    local tabAlpha = Settings.Get().TabsMatchWindowAlpha and TabAlphaSource(rec) or Client.TabRestAlpha(rec.tab, IsSelectedTab(rec))
+    local tabAlpha
+    if revealed and s.WheelRevealsTabs then tabAlpha = WHEEL_REVEAL_ALPHA
+    elseif s.TabsMatchWindowAlpha then tabAlpha = TabAlphaSource(rec)
+    else tabAlpha = Client.TabRestAlpha(rec.tab, IsSelectedTab(rec)) end
     SetAlphaQuiet(rec.tab, tabAlpha)
     Reveal.SetTabInteractive(rec, tabAlpha > TAB_HIDDEN_ALPHA)
   end

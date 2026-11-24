@@ -115,6 +115,8 @@ function Options.Create()
 
   local ch = Section("Hide chat buttons")
   ch:Add(Check(ch, "TabsMatchWindowAlpha", "Tabs use the window's background alpha", "Chat tabs are as transparent as their window's background. Unticked: the game's own per-tab alpha."), 26, -10)
+  ch:Add(Check(ch, "WheelRevealsBackground", "Reveal window background on mouse wheel over window", "A wheel turn over a chat window shows its background for a few seconds. Moving the pointer never does."), 26)
+  ch:Add(Check(ch, "WheelRevealsTabs", "Reveal window tabs on mouse wheel over window", "A wheel turn over a chat window shows its tabs (the whole dock's, if docked) for a few seconds so they can be clicked."), 26)
   local first = false
   for _, item in ipairs(NS.Chrome.ITEMS) do
     ch:Add(Check(ch, item.key, item.label, item.tip), 26, first and -10 or nil)
