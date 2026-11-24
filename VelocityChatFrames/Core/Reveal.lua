@@ -36,6 +36,49 @@ local function IsSelectedTab(rec)
   return SELECTED_CHAT_FRAME == rec.frame
 end
 
+-- A tab is only HIGHLIGHTED (selected art + full reveal) when it has siblings to be picked out
+-- from. A lone tab -- a floating window, or a dock with one visible tab -- has nothing to
+-- compete with, so it gets the plain "background tab" look (no gold art, inactive alpha).
+local function DockVisibleTabCount()
+  if not (FCFDock_GetChatFrames and GENERAL_CHAT_DOCK) then return 1 end
+  local n = 0
+  for _, f in ipairs(FCFDock_GetChatFrames(GENERAL_CHAT_DOCK)) do
+    local tab = _G[f:GetName() .. "Tab"]
+    if tab and tab:IsShown() then n = n + 1 end
+  end
+  return n
+end
+
+local function IsLoneTab(rec)
+  if not rec.frame.isDocked then return true end
+  return DockVisibleTabCount() <= 1
+end
+
+local function IsHighlightedTab(rec)
+  return IsSelectedTab(rec) and not IsLoneTab(rec)
+end
+Reveal.IsHighlightedTab = IsHighlightedTab
+
+-- Selected-tab art pieces, Mainline and Era names. Hidden for a lone tab; for a selected tab
+-- with siblings, re-shown (stock FCFTab_UpdateColors may have run while the tab was lone).
+local SELECTED_ART = {
+  "ActiveLeft", "ActiveMiddle", "ActiveRight",
+  "leftSelectedTexture", "middleSelectedTexture", "rightSelectedTexture",
+}
+
+local function ApplyTabHighlightArt(rec)
+  local tab = rec.tab
+  if not tab then return end
+  local show = IsHighlightedTab(rec)
+  for _, key in ipairs(SELECTED_ART) do
+    local tex = tab[key]
+    if tex then
+      -- SetShown rather than SetAlpha: stock toggles these with Show/Hide, so we stay in its vocabulary.
+      tex:SetShown(show)
+    end
+  end
+end
+
 -- The alpha a tab should share: for a docked window, the alpha of the dock's SELECTED window
 -- (the one actually displayed); for a floating window, its own.
 local function TabAlphaSource(rec)
@@ -169,15 +212,17 @@ function Reveal.ApplyChrome(rec)
     -- so a near-invisible window has near-invisible tabs. Off = the stock per-tab no-mouse alpha.
     local restTabAlpha
     if s.TabsMatchWindowAlpha then restTabAlpha = TabAlphaSource(rec)
-    else restTabAlpha = Client.TabRestAlpha(rec.tab, IsSelectedTab(rec)) end
+    else restTabAlpha = Client.TabRestAlpha(rec.tab, IsHighlightedTab(rec)) end
     local tabAlpha = restTabAlpha
     if (s.WheelRevealsTabs or editing) and level > 0 then
-      -- Active tab reveals to full; inactive tabs to half, so the active one reads as the
-      -- brightest at a glance (Principle 5: flat tone difference, not a glow).
-      local target = IsSelectedTab(rec) and 1 or (s.InactiveTabRevealAlpha or 0.5)
+      -- Highlighted (selected, with siblings) tab reveals to full; every other tab -- including
+      -- a lone tab -- to the inactive alpha, so the active one reads as the brightest at a
+      -- glance (Principle 5: flat tone difference, not a glow).
+      local target = IsHighlightedTab(rec) and 1 or (s.InactiveTabRevealAlpha or 0.5)
       if target < restTabAlpha then target = restTabAlpha end
       tabAlpha = restTabAlpha + (target - restTabAlpha) * level
     end
+    ApplyTabHighlightArt(rec)
     SetAlphaQuiet(rec.tab, tabAlpha)
     Reveal.SetTabInteractive(rec, tabAlpha > TAB_HIDDEN_ALPHA)
   end
@@ -314,6 +359,14 @@ function Reveal.Init()
   -- FCFTab_UpdateAlpha sets the tab alpha directly (dock update, tab select, alert); it runs
   -- after our pass at login, which left background tabs visible until the next re-apply.
   if FCFTab_UpdateAlpha then hooksecurefunc("FCFTab_UpdateAlpha", OnStockFade) end
+  -- Stock re-shows the selected art on every select / dock / colour change; strip it again
+  -- for a lone tab (see IsHighlightedTab).
+  hooksecurefunc("FCFTab_UpdateColors", function(tab)
+    if not Settings.IsEnabled() then return end
+    local f = FCF_GetChatFrameByID and FCF_GetChatFrameByID(tab:GetID()) or _G["ChatFrame" .. tab:GetID()]
+    local rec = f and Windows.Get(f)
+    if rec then ApplyTabHighlightArt(rec) end
+  end)
   if FCFDock_UpdateTabs then hooksecurefunc("FCFDock_UpdateTabs", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
   if FCF_DockUpdate then hooksecurefunc("FCF_DockUpdate", function() if Settings.IsEnabled() then Reveal.ApplyAll() end end) end
   -- Selecting another tab changes which window's alpha the dock's tabs follow.
