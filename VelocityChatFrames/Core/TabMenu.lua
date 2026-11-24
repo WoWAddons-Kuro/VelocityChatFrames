@@ -92,6 +92,21 @@ function TabMenu.Init()
       local label = VCF_PrimaryUnlocked and (LOCK_WINDOW or "Lock Window") or (UNLOCK_WINDOW or "Unlock Window")
       rootDescription:CreateButton(label, function() TabMenu.SetPrimaryUnlocked(not VCF_PrimaryUnlocked) end)
     end
+    -- The social / quick-join button is the stock way to the friends list; when it is hidden,
+    -- offer the friends list here instead.
+    if Settings.Get().HideSocialButton and ToggleFriendsFrame then
+      -- Stock binding name is TOGGLESOCIAL (Key Bindings > Interface Panel > "Toggle Social
+      -- Window"), the key the O/Friends button is bound to. Show it if the player has one.
+      local label = FRIENDS_LIST or "Friends List"
+      local key = GetBindingKey and GetBindingKey("TOGGLESOCIAL")
+      if key and key ~= "" then
+        local pretty = GetBindingText and GetBindingText(key, nil, true) or key
+        label = string.format("%s (%s)", label, pretty)
+      end
+      rootDescription:CreateButton(label, function()
+        ToggleFriendsFrame(1)   -- 1 = Friends tab (FRIEND_TAB_FRIENDS)
+      end)
+    end
     rootDescription:CreateButton("Frame Fade Settings...", function() if NS.Options then NS.Options.Open() end end)
   end)
 
