@@ -21,6 +21,35 @@ local function StockAnchor(box)
   else box:SetPoint("TOPRIGHT", box.chatFrame or ChatFrame1, "BOTTOMRIGHT", 5, -2) end
 end
 
+-- IM chooses a box per window. Share its location, not its channel/recipient state.
+local sharedPlacementOriginals = {}
+local function ApplySharedPlacement()
+  local main, s = Box(), Settings.Get()
+  local useMain = Settings.IsEnabled() and s.EditBoxFloat and s.AlwaysMainInputLocation
+  for _, rec in ipairs(NS.Windows.All()) do
+    local box = rec.frame.editBox or _G[rec.name .. "EditBox"]
+    if box and box ~= main then
+      if useMain and main:GetLeft() and main:GetTop() then
+        if not sharedPlacementOriginals[box] then
+          local saved = { points = {}, width = box:GetWidth(), height = box:GetHeight() }
+          for i = 1, box:GetNumPoints() do saved.points[i] = { box:GetPoint(i) } end
+          sharedPlacementOriginals[box] = saved
+        end
+        local scale = main:GetEffectiveScale() / box:GetEffectiveScale()
+        box:ClearAllPoints()
+        box:SetWidth(main:GetWidth() * scale)
+        box:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", main:GetLeft() * scale, main:GetTop() * scale)
+      elseif sharedPlacementOriginals[box] then
+        local saved = sharedPlacementOriginals[box]
+        sharedPlacementOriginals[box] = nil
+        box:ClearAllPoints()
+        box:SetSize(saved.width, saved.height)
+        for _, point in ipairs(saved.points) do box:SetPoint(unpack(point)) end
+      end
+    end
+  end
+end
+
 function EditBox.Apply()
   local box = Box()
   if not box then return end
@@ -28,6 +57,7 @@ function EditBox.Apply()
   if not (Settings.IsEnabled() and s.EditBoxFloat) then
     box:SetMovable(false); box:SetScript("OnDragStart", nil); box:SetScript("OnDragStop", nil)
     if box.vcfFloating then StockAnchor(box); box.vcfFloating = nil end
+    ApplySharedPlacement()
     return
   end
   local x = s.EditBoxX or box:GetLeft() or 0
@@ -46,6 +76,7 @@ function EditBox.Apply()
     box:SetScript("OnDragStart", function(self) self:StartMoving() end)
     box:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); SavePosition(self) end)
   end
+  ApplySharedPlacement()
 end
 
 -- Hide when idle --------------------------------------------------------------------------
@@ -87,6 +118,27 @@ local function ApplyChatStyle()
   else
     if STOCK_CHAT_STYLE and C_CVar.GetCVar("chatStyle") ~= STOCK_CHAT_STYLE then C_CVar.SetCVar("chatStyle", STOCK_CHAT_STYLE) end
   end
+  EditBox.ApplyClickAnywhere()
+end
+
+-- chatStyle "im" has a side effect that is the exact bug this addon exists to kill: every window
+-- whose edit box is not the last-active one shows $parentClickAnywhereButton, a full-size
+-- invisible Button that eats left and right click (FCFClickAnywhereButton_UpdateState,
+-- FloatingChatFrame.lua 1740; it is gated on the wholeChatWindowClickable CVar). Keep it hidden
+-- on every window while VCF is on; the CVar itself is the user's and is not written.
+function EditBox.ApplyClickAnywhere()
+  for i = 1, (NUM_CHAT_WINDOWS or 10) do
+    local f = _G["ChatFrame" .. i]
+    local btn = f and f.clickAnywhereButton
+    if btn then
+      if Settings.IsEnabled() then
+        if not btn.vcfPinned then btn.vcfPinned = true; btn:HookScript("OnShow", function(self) if Settings.IsEnabled() then self:Hide() end end) end
+        btn:Hide()
+      elseif FCFClickAnywhereButton_UpdateState then
+        FCFClickAnywhereButton_UpdateState(btn)    -- hand it back to stock
+      end
+    end
+  end
 end
 
 function EditBox.ApplyIdle()
@@ -99,7 +151,7 @@ function EditBox.ApplyIdle()
 end
 
 local function HookIdle()
-  local onActivate = function(box) if box then SetActiveLook(box) end end
+  local onActivate = function(box) if box then EditBox.Apply(); SetActiveLook(box) end end
   local onDeactivate = function(box) if box then SetIdleLook(box) end end
   if ChatFrameUtil and ChatFrameUtil.ActivateChat then hooksecurefunc(ChatFrameUtil, "ActivateChat", onActivate) end
   if ChatFrameUtil and ChatFrameUtil.DeactivateChat then hooksecurefunc(ChatFrameUtil, "DeactivateChat", onDeactivate) end
@@ -119,7 +171,70 @@ end
 
 -- Stock code re-anchors the box when the selected tab changes (ChatFrameUtil.SetLastActiveWindow,
 -- FCF_SetButtonSide / FCF_DockUpdate). Re-apply after each.
+-- Reposition only an edit box actually opened by a player-link click. Keep Blizzard's
+-- chosen edit box and recipient; restore its previous anchors when focus leaves.
+local usernamePlacements = {}
+
+local function RestoreUsernamePlacement(box)
+  local saved = usernamePlacements[box]
+  if not saved then return end
+  usernamePlacements[box] = nil
+  box:ClearAllPoints()
+  box:SetSize(saved.width, saved.height)
+  for _, point in ipairs(saved.points) do box:SetPoint(unpack(point)) end
+end
+
+function EditBox.InitUsernamePlacement()
+  local function attach(rec)
+    local frame = rec.frame
+    frame:HookScript("OnHyperlinkClick", function(source, link, _, button)
+      if not Settings.IsEnabled() or button ~= "LeftButton" or NS.Util.IsSecret(link) then return end
+      if type(link) ~= "string" or not (link:match("^player:") or link:match("^BNplayer:")) then return end
+      -- Modified clicks can insert links or perform other actions; leave them stock.
+      if IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown() then return end
+      local box = ChatFrameUtil and ChatFrameUtil.GetActiveWindow and ChatFrameUtil.GetActiveWindow()
+      if not box or not box:HasFocus() then return end
+      RestoreUsernamePlacement(box)
+      local s = Settings.Get()
+      if s.AlwaysMainInputLocation and s.EditBoxFloat then EditBox.Apply(); return end
+      local main = Box()
+      local left, top, width
+      if s.UsernameInputPlacement == "main" and main then
+        -- Convert between effective scales for a secondary window's edit box.
+        local scale = main:GetEffectiveScale() / box:GetEffectiveScale()
+        left, top, width = main:GetLeft(), main:GetTop(), main:GetWidth()
+        if not left or not top then return end
+        if s.EditBoxFloat then left, top, width = s.EditBoxX or left, s.EditBoxY or top, s.EditBoxW or width end
+        left, top, width = left * scale, top * scale, width * scale
+      end
+      local saved = { points = {}, width = box:GetWidth(), height = box:GetHeight() }
+      for i = 1, box:GetNumPoints() do saved.points[i] = { box:GetPoint(i) } end
+      usernamePlacements[box] = saved
+      if not box.vcfUsernameFocusHook then
+        box.vcfUsernameFocusHook = true
+        box:HookScript("OnEditFocusLost", RestoreUsernamePlacement)
+      end
+      box:ClearAllPoints()
+      if left then
+        box:SetWidth(width)
+        box:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+      else
+        box:SetPoint("TOPLEFT", source, "BOTTOMLEFT", -5, -2)
+        box:SetPoint("TOPRIGHT", source, "BOTTOMRIGHT", 5, -2)
+      end
+    end)
+  end
+  for _, rec in ipairs(NS.Windows.All()) do attach(rec) end
+  NS.Windows.OnNewRecord(attach)
+  Settings.OnChange("Enabled", function()
+    if not Settings.IsEnabled() then
+      for box in pairs(usernamePlacements) do RestoreUsernamePlacement(box) end
+    end
+  end)
+end
+
 function EditBox.Init()
+  EditBox.InitUsernamePlacement()
   ApplyChatStyle()
   HookIdle()
   EditBox.ApplyIdle()
@@ -127,8 +242,12 @@ function EditBox.Init()
   if ChatEdit_SetLastActiveWindow then hooksecurefunc("ChatEdit_SetLastActiveWindow", EditBox.Apply) end
   if FCF_DockUpdate then hooksecurefunc("FCF_DockUpdate", EditBox.Apply) end
   if FCF_SetButtonSide then hooksecurefunc("FCF_SetButtonSide", EditBox.Apply) end
+  -- Stock re-evaluates the click-anywhere buttons on every last-active change and CVAR_UPDATE.
+  if FCFClickAnywhereButton_UpdateState then hooksecurefunc("FCFClickAnywhereButton_UpdateState", function() if Settings.IsEnabled() then EditBox.ApplyClickAnywhere() end end) end
+  EditBox.ApplyClickAnywhere()
   EditBox.Apply()
 end
 
 for _, k in ipairs({ "Enabled", "EditBoxFloat", "EditBoxLocked" }) do Settings.OnChange(k, function() ApplyChatStyle(); EditBox.Apply() end) end
+Settings.OnChange("AlwaysMainInputLocation", EditBox.Apply)
 for _, k in ipairs({ "Enabled", "EditBoxHideWhenIdle" }) do Settings.OnChange(k, EditBox.ApplyIdle) end

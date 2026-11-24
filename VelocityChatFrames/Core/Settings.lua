@@ -42,8 +42,10 @@ Settings.DEFAULTS = {
 
   -- Edit box
   EditBoxFloat = true,
+  AlwaysMainInputLocation = true,
   EditBoxLocked = true,
   EditBoxHideWhenIdle = true,
+  UsernameInputPlacement = "clicked",       -- clicked window bottom, or "main" placed input position
   EditBoxX = nil, EditBoxY = nil, EditBoxW = nil,
 }
 

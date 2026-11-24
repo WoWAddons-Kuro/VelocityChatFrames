@@ -185,8 +185,30 @@ function Options.Create()
 
   local eb = Section("Edit box")
   eb:Add(Check(eb, "EditBoxFloat", "Float the edit box at a fixed screen position", "The typing box stays where you put it instead of jumping under whichever window's tab is selected."), 26, -10)
+  eb:Add(Check(eb, "AlwaysMainInputLocation", "Always use the main placed input location", "With floating input enabled, Enter, replies and username clicks use the main input location regardless of which window was last active. Keeps the chosen channel/recipient. Overrides the username placement choice below."), 26)
   eb:Add(Check(eb, "EditBoxLocked", "Lock position", "Unticked: drag the edit box with the left mouse button (open it with Enter first). Tick again to lock."), 26)
   eb:Add(Check(eb, "EditBoxHideWhenIdle", "Hide the edit box when not typing", "The box is invisible and ignores the mouse until you press Enter."), 26)
+  local usernameLabel = eb:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+  usernameLabel:SetText("Clicking usernames opens chat input on:")
+  eb:Add(usernameLabel, 14, -10, 4)
+  for _, option in ipairs({
+    { value = "clicked", label = "Bottom of clicked chat frame (default)" },
+    { value = "main", label = "Main placed input frame" },
+  }) do
+    local value = option.value
+    local radio = CreateFrame("CheckButton", nil, eb, "UIRadioButtonTemplate")
+    radio:SetSize(16, 16)
+    local label = radio:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    label:SetPoint("LEFT", radio, "RIGHT", 5, 0); label:SetText(option.label)
+    radio.Update = function(self) self:SetChecked((db().UsernameInputPlacement or "clicked") == value) end
+    radio:SetScript("OnClick", function()
+      db().UsernameInputPlacement = value
+      NS.OnSettingChanged("UsernameInputPlacement")
+      Options.Refresh()
+    end)
+    widgets[#widgets + 1] = radio
+    eb:Add(radio, 18, -6, 4)
+  end
   eb:Finish()
 
   local st = Section("Sticky channels")
