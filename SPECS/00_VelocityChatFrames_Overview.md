@@ -179,7 +179,7 @@ Stock reveal: `FCF_FadeInChatFrame`, `FCF_FadeOutChatFrame`, `ChatFrameUtil.GetT
 - **Whispers.** Whether an incoming whisper moves Rest to Awake.
 - **Link in a fresh line.** At Rest a link cannot be clicked. Whether modifier + click on a link should wake the window and follow the link in one step.
 - **Return to Rest.** Whether lines older than the fade delay vanish at once or share one fade-out (`ResetAllFadeTimes()` would give them a fresh 15 s instead).
-- **Intermittent lost hover/clicks over chat rects** (observed under Prat, unreproducible on demand, cause unconfirmed). Rest state should remove it as a side effect; verify over a week of play. If it persists with Prat *on* only, file under `AddonManagement\_BUGFIX\` and PR upstream.
+- ~~**Intermittent lost hover/clicks over chat rects**~~ — probable cause found 2026-11-23: stock chat tabs are `EnableMouse(true)` Buttons at any alpha, so every invisible docked tab was a dead strip eating clicks and hover; with many windows that is a lot of screen. `696eea4` turns mouse off on any tab at or below 5 % alpha. Treat as resolved unless it recurs.
 
 ## Alternatives Considered
 
