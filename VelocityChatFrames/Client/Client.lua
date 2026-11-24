@@ -12,4 +12,5 @@ Client.INTERFACE = {
   "PlayerFirstName",      -- UnitName("player"): what chat sender names compare against
   "TabRestAlpha",         -- (tab, isSelected) -> the stock no-mouse alpha for that tab
   "ScrollColumnButtons",  -- (chatFrameName) -> list of the window's scroll/minimize buttons (names differ per client)
+  "WhisperScopeKey",      -- the set of characters that share a whisper journal: Era = realm, Forever = account
 }

@@ -13,6 +13,8 @@ function impl.PlayerDisplayName()
 end
 
 function impl.PlayerFirstName() return UnitName("player") end
+-- Forever is a single realm; every character on the account shares the journal.
+function impl.WhisperScopeKey() return "account" end
 
 -- Mainline stores per-tab alphas; GetTabAlphas returns mouseOver, noMouse.
 function impl.TabRestAlpha(tab, isSelected)

@@ -9,6 +9,7 @@
 - [x] Short channel tags (`CHAT_<TYPE>_GET` rewrite; bracket-less stock formats such as `%s says:` are rebuilt as `[S] %s:`)
 - [x] Player data store (level, class) from stock events (`Core\PlayerData.lua`)
 - [x] `[level:Name]` rendering via `ChatFrameUtil.AddSenderNameFilter` (official, secret-safe, both clients) — own-line level still to confirm in play
+- [x] Class colour on **every** message regardless of the per-type `colorNameByClass` setting: if stock did not wrap the name (`|c` absent), the filter wraps it from `GetPlayerInfoByGUID(arg12)` → `PlayerData.ClassFor(name)` → `RAID_CLASS_COLORS`. Level missing still yields a class-coloured `[Name]`. (2026-11-24, Era reported plain names)
 - [ ] Secret-value safety on Forever verified in an instance
 
 ## Where the text is shaped

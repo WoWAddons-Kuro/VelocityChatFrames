@@ -119,6 +119,21 @@ function Options.Create()
   lines:Add(Check(lines, "LevelColorByDifficulty", "Colour the level by difficulty", "The level number takes the quest-difficulty colour relative to you (grey, green, yellow, orange, red), slightly desaturated."), 26)
   lines:Finish()
 
+  local sb = Section("Scrollback restore")
+  sb:Add(Check(sb, "ScrollbackRestore", "Restore scrollback on login / reload", "Each window gets its recent lines back after a login or /reload, followed by a grey 'previous session' marker. Lines you could still see when you logged out stay visible if you are back within the grace period below; otherwise everything restored is already faded (scroll, wheel or hover to see it)."), 26, -10)
+  sb:Add(Check(sb, "ScrollbackWhispers", "Restore recent whispers across characters", "Whispers you sent or received on any character show up in every window that displays whispers. Classic Era: only characters on the same realm share them. Unticked: whispers are neither recorded nor restored."), 26)
+  sb:Add(Check(sb, "ScrollbackInColor", "Restore scrollback in colour", "Keep the original colours, links and icons. Unticked: restored lines are plain grey text."), 26)
+  sb:Add(Slider(sb, "VelocityChatFramesOptScrollbackLines", "ScrollbackLines", 100, 50, 500, 10,
+    function(v) return string.format("Restore up to %d lines per window", v) end), 44, -6)
+  sb:Add(Slider(sb, "VelocityChatFramesOptWhisperLines", "WhisperLines", 20, 10, 50, 5,
+    function(v) return string.format("Keep the %d most recent whispers", v) end), 44, -6)
+  sb:Add(Slider(sb, "VelocityChatFramesOptGrace", "ScrollbackGraceMinutes", 10, 5, 60, 5,
+    function(v) return string.format("Lines visible at logout stay visible if you are back within %d min", v) end), 44, -6)
+  local sbNote = sb:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"); sbNote:SetWidth(BOX_W - 2 * PAD - 8); sbNote:SetJustifyH("LEFT")
+  sbNote:SetText("Takes effect at the next login or /reload. The Combat Log is never restored.")
+  sb:Add(sbNote, 14, -8, 4)
+  sb:Finish()
+
   local ch = Section("Hide chat buttons")
   ch:Add(Check(ch, "TabsMatchWindowAlpha", "Tabs use the window's background alpha", "Chat tabs are as transparent as their window's background. Unticked: the game's own per-tab alpha."), 26, -10)
   ch:Add(Check(ch, "WheelRevealsBackground", "Reveal window background on mouse wheel over window", "A wheel turn over a chat window shows its background for a few seconds. Moving the pointer never does."), 26)

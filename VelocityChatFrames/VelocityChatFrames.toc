@@ -25,6 +25,7 @@ Core\Windows.lua
 Core\Reveal.lua
 Core\Sticky.lua
 Core\Fading.lua
+Core\Scrollback.lua
 Core\PlayerData.lua
 Core\LineFormat.lua
 Core\HideButtons.lua

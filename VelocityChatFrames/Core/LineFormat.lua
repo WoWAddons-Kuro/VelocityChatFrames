@@ -79,17 +79,42 @@ local function DifficultyColorFor(level)
   return r * k + grey * (1 - k), g * k + grey * (1 - k), b * k + grey * (1 - k)
 end
 
+-- Class colour: stock only wraps the name when ChatTypeInfo[type].colorNameByClass is on for that
+-- chat type (off by default for most types on Era). We want [level:Name] class-coloured on EVERY
+-- message, so when stock left the name plain we wrap it ourselves. Class comes from the sender
+-- GUID (arg12) or, failing that, from PlayerData (roster / friends / group / who).
+local function ClassTokenFor(senderName, senderGUID)
+  if senderGUID and not IsSecret(senderGUID) and senderGUID ~= "" and GetPlayerInfoByGUID then
+    local _, classToken = GetPlayerInfoByGUID(senderGUID)
+    if classToken and not IsSecret(classToken) and classToken ~= "" then return classToken end
+  end
+  return PlayerData.ClassFor(senderName)
+end
+
+local function EnsureClassColored(decoratedPlayerName, senderName, senderGUID)
+  if decoratedPlayerName:find("|c", 1, true) then return decoratedPlayerName end   -- stock already did it
+  local classToken = ClassTokenFor(senderName, senderGUID)
+  local colors = CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS
+  local c = classToken and colors and colors[classToken]
+  if not c then return decoratedPlayerName end
+  if c.WrapTextInColorCode then return c:WrapTextInColorCode(decoratedPlayerName) end
+  return string.format("|cff%02x%02x%02x%s|r", c.r * 255, c.g * 255, c.b * 255, decoratedPlayerName)
+end
+
 local function SenderNameFilter(event, decoratedPlayerName, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12)
   if not Settings.IsEnabled() then return nil end
   local s = Settings.Get()
-  if not s.ShowLevelInName then return nil end
   if IsSecret(decoratedPlayerName) or IsSecret(arg2) or not arg2 or arg2 == "" then return nil end
+  if type(decoratedPlayerName) ~= "string" then return nil end
 
   PlayerData.NoteSenderGUID(arg2, arg12)
+  local name = EnsureClassColored(decoratedPlayerName, arg2, arg12)
+
+  if not s.ShowLevelInName then return name end
   local level = PlayerData.LevelFor(arg2)
   if not level then
     if event == "CHAT_MSG_GUILD" or event == "CHAT_MSG_OFFICER" then PlayerData.RequestGuildRoster() end
-    return nil
+    return name                                          -- class colour still applies
   end
 
   local levelText = tostring(level)
@@ -97,7 +122,7 @@ local function SenderNameFilter(event, decoratedPlayerName, arg1, arg2, arg3, ar
     local r, g, b = DifficultyColorFor(level)
     if r then levelText = string.format("|cff%02x%02x%02x%s|r", r * 255, g * 255, b * 255, levelText) end
   end
-  return levelText .. ":" .. decoratedPlayerName
+  return levelText .. ":" .. name
 end
 
 -- Init / settings -------------------------------------------------------------------------

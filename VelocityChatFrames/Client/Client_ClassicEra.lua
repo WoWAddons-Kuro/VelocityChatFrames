@@ -7,6 +7,9 @@ NS.ClientFlavours.classic_era = impl
 function impl.PlayerKey() return UnitGUID("player") end
 function impl.PlayerDisplayName() return UnitName("player") end
 function impl.PlayerFirstName() return UnitName("player") end
+-- Whispers cannot cross realms on Era, so the shared journal is per realm.
+function impl.WhisperScopeKey() return "realm:" .. ((GetNormalizedRealmName and GetNormalizedRealmName()) or GetRealmName() or "?") end
+
 
 function impl.TabRestAlpha(tab, isSelected)
   if ChatFrameUtil and ChatFrameUtil.GetTabAlphas then

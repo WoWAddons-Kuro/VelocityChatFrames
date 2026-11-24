@@ -34,18 +34,21 @@ local function OnLogin()
   if other then NS.Conflict.Enter(other); return end
 
   NS.Settings.Init()
-  NS.PlayerData.Init()
   NS.Windows.Init()
-  NS.Reveal.Init()
-  NS.Fading.Init()
-  NS.Sticky.Init()
-  NS.LineFormat.Init()
-  NS.HideButtons.Init()
-  NS.EditModeLayout.Init()
-  NS.EditBox.Init()
-  NS.TabMenu.Init()
-  NS.CopyText.Init()
-  NS.Options.Create()
+  -- Each module is isolated: one failing Init is reported and the rest still run. Order:
+  -- LineFormat before Scrollback so restored lines are added after the formatter hooks exist.
+  local inits = {
+    { "PlayerData", NS.PlayerData.Init }, { "Reveal", NS.Reveal.Init }, { "Fading", NS.Fading.Init },
+    { "Sticky", NS.Sticky.Init }, { "LineFormat", NS.LineFormat.Init },
+    { "Scrollback", NS.Scrollback.Init },     -- restores saved lines before any live CHAT_MSG line lands
+    { "HideButtons", NS.HideButtons.Init }, { "EditModeLayout", NS.EditModeLayout.Init },
+    { "EditBox", NS.EditBox.Init }, { "TabMenu", NS.TabMenu.Init }, { "CopyText", NS.CopyText.Init },
+    { "Options", NS.Options.Create },
+  }
+  for _, m in ipairs(inits) do
+    local ok, err = pcall(m[2])
+    if not ok then Util.Raise(m[1] .. ".Init", err) end
+  end
 
   SLASH_VELOCITYCHATFRAMES1 = "/vcf"
   SlashCmdList["VELOCITYCHATFRAMES"] = SlashHandler

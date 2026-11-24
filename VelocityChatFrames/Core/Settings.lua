@@ -20,6 +20,14 @@ Settings.DEFAULTS = {
     BN_WHISPER = false, CHANNEL = false, EMOTE = false,
   },
 
+  -- 04_ScrollbackRestore
+  ScrollbackRestore = true,                  -- lines survive login / reload
+  ScrollbackWhispers = true,                 -- recent whispers follow you across characters (per realm on Era)
+  ScrollbackInColor = true,                  -- keep colours/links; off = grey plain text
+  ScrollbackLines = 100,                     -- per window (50..500)
+  WhisperLines = 20,                         -- shared journal size (10..50)
+  ScrollbackGraceMinutes = 10,               -- lines visible at logout stay visible if back within this (5..60)
+
   -- 01_LineFormatting
   Timestamps = true,
   TimestampFormat = "%H:%M",
