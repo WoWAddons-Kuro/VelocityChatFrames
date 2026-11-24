@@ -47,6 +47,20 @@ local function TabAlphaSource(rec)
   return UserBackgroundAlpha(rec)
 end
 
+-- A tab that is transparent takes no mouse. Threshold: anything at or below this alpha is
+-- treated as hidden. Stock code calls tab:EnableMouse(true) nowhere after creation, so we own
+-- this bit; Phase 2 Chrome state and Phase 3 theme will call Reveal.SetTabInteractive directly.
+local TAB_HIDDEN_ALPHA = 0.05
+
+function Reveal.SetTabInteractive(rec, on)
+  if not rec.tab then return end
+  if rec.tab.vcfMouseOn == on then return end
+  rec.tab.vcfMouseOn = on
+  rec.tab:EnableMouse(on)
+  -- The tab's text FontString and any child buttons do not take mouse on their own; the
+  -- Button frame does. Dragging a tab (re-dock) also goes through the tab, so it is off too.
+end
+
 -- What every piece of this window should look like at rest. Phase 2 (states) and Phase 3 (theme)
 -- will consult NS.State / NS.Theme here; Phase 0 reproduces the stock no-mouse look exactly.
 function Reveal.ApplyChrome(rec)
@@ -59,6 +73,7 @@ function Reveal.ApplyChrome(rec)
     -- so a near-invisible window has near-invisible tabs. Off = the stock per-tab no-mouse alpha.
     local tabAlpha = Settings.Get().TabsMatchWindowAlpha and TabAlphaSource(rec) or Client.TabRestAlpha(rec.tab, IsSelectedTab(rec))
     SetAlphaQuiet(rec.tab, tabAlpha)
+    Reveal.SetTabInteractive(rec, tabAlpha > TAB_HIDDEN_ALPHA)
   end
   if rec.buttonFrame and not rec.frame.isDocked then
     SetAlphaQuiet(rec.buttonFrame, CHAT_FRAME_BUTTON_FRAME_MIN_ALPHA or 0.2)
@@ -115,6 +130,7 @@ end
 -- Global disable: hand the look back to the stock code.
 function Reveal.Restore()
   for _, rec in ipairs(Windows.All()) do
+    Reveal.SetTabInteractive(rec, true)
     if rec.frame:IsShown() and FCF_FadeOutChatFrame then FCF_FadeOutChatFrame(rec.frame) end
   end
 end
