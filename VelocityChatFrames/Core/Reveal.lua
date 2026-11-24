@@ -36,6 +36,17 @@ local function IsSelectedTab(rec)
   return SELECTED_CHAT_FRAME == rec.frame
 end
 
+-- The alpha a tab should share: for a docked window, the alpha of the dock's SELECTED window
+-- (the one actually displayed); for a floating window, its own.
+local function TabAlphaSource(rec)
+  if rec.frame.isDocked and FCFDock_GetSelectedWindow and GENERAL_CHAT_DOCK then
+    local selected = FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK)
+    local selRec = selected and Windows.Get(selected)
+    if selRec then return UserBackgroundAlpha(selRec) end
+  end
+  return UserBackgroundAlpha(rec)
+end
+
 -- What every piece of this window should look like at rest. Phase 2 (states) and Phase 3 (theme)
 -- will consult NS.State / NS.Theme here; Phase 0 reproduces the stock no-mouse look exactly.
 function Reveal.ApplyChrome(rec)
@@ -44,9 +55,9 @@ function Reveal.ApplyChrome(rec)
   for _, tex in ipairs(rec.texturePieces) do SetAlphaQuiet(tex, bgAlpha) end
 
   if rec.tab then
-    -- TabsMatchWindowAlpha: tabs sit at the window's own background alpha, so a near-invisible
-    -- window has near-invisible tabs. Off = the stock per-tab no-mouse alpha.
-    local tabAlpha = Settings.Get().TabsMatchWindowAlpha and bgAlpha or Client.TabRestAlpha(rec.tab, IsSelectedTab(rec))
+    -- TabsMatchWindowAlpha: every tab in a dock sits at the displayed window's background alpha,
+    -- so a near-invisible window has near-invisible tabs. Off = the stock per-tab no-mouse alpha.
+    local tabAlpha = Settings.Get().TabsMatchWindowAlpha and TabAlphaSource(rec) or Client.TabRestAlpha(rec.tab, IsSelectedTab(rec))
     SetAlphaQuiet(rec.tab, tabAlpha)
   end
   if rec.buttonFrame and not rec.frame.isDocked then
