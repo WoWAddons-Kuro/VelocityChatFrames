@@ -36,9 +36,26 @@ function TabMenu.RestorePrimaryPosition()
   if FCF_DockUpdate then FCF_DockUpdate() end
 end
 
+-- Edit Mode "snap" anchors another system frame directly to ChatFrame1 (EditModeSystemMixin:SnapToFrame),
+-- so dragging the General window would tow it along. Blizzard's own escape hatch is BreakSnappedFrames():
+-- each snapped frame is re-anchored to UIParent at its current screen spot (BreakFrameSnap). Era has no
+-- Edit Mode, so the method is simply absent there. Idempotent; called on Unlock and at drag start.
+local function DetachSnappedFrames(f)
+  if type(f.BreakSnappedFrames) ~= "function" or type(f.snappedFrames) ~= "table" then return end
+  local snappedCount = 0
+  for _ in pairs(f.snappedFrames) do snappedCount = snappedCount + 1 end
+  if snappedCount == 0 then return end
+  local ok, err = pcall(f.BreakSnappedFrames, f)
+  if not ok then Util.Raise("DetachSnappedFrames", err); return end
+  Util.Print("%d Edit Mode frame%s snapped to the General window %s detached so %s stay%s put while you move it.",
+    snappedCount, snappedCount == 1 and "" or "s", snappedCount == 1 and "was" or "were",
+    snappedCount == 1 and "it" or "they", snappedCount == 1 and "s" or "")
+end
+
 local function OnTabDragStart(tab)
   if not VCF_PrimaryUnlocked then return end
   local f = Primary()
+  DetachSnappedFrames(f)
   f:SetMovable(true)
   f:StartMoving()
   tab.vcfDragging = true
@@ -94,6 +111,7 @@ function TabMenu.SetPrimaryUnlocked(on)
   VCF_PrimaryUnlocked = on and true or false
   local f, tab = Primary(), PrimaryTab()
   if not (f and tab) then return end
+  if VCF_PrimaryUnlocked then DetachSnappedFrames(f) end
   f:SetMovable(VCF_PrimaryUnlocked)
   f:SetResizable(VCF_PrimaryUnlocked)
   local grip = GetResizeGrip()

@@ -162,6 +162,25 @@ events:SetScript("OnEvent", function(_, event, _, sender)
 end)
 
 -- Init -----------------------------------------------------------------------------------------
+-- /vcf fadedebug: report every ResetAllFadeTimes (the only thing that un-fades a whole window)
+-- with the caller, so an unexplained whole-window reveal can be traced to stock or to us.
+Fading.debug = false
+local function WireFadeDebug(rec)
+  local f = rec.frame
+  if rec.isCombatLog or f.vcfFadeDebugWired or not f.ResetAllFadeTimes then return end
+  f.vcfFadeDebugWired = true
+  hooksecurefunc(f, "ResetAllFadeTimes", function(frame)
+    if not Fading.debug then return end
+    local who = debugstack(3, 1, 0):match("^%s*(.-)%s*$") or "?"
+    Util.Print("%s ResetAllFadeTimes <- %s", frame:GetName() or "?", who)
+  end)
+end
+function Fading.ToggleDebug()
+  Fading.debug = not Fading.debug
+  for _, rec in ipairs(Windows.All()) do WireFadeDebug(rec) end
+  Util.Print("fade debug=%s (prints who resets fade times per window)", tostring(Fading.debug))
+end
+
 function Fading.Init()
   Windows.OnNewRecord(function(rec)
     WireHover(rec)

@@ -16,6 +16,7 @@ local function SlashHandler(msg)
   msg = (msg or ""):lower():match("^%s*(.-)%s*$")
   if msg == "status" then Status()
   elseif msg == "copydebug" then
+  elseif msg == "fadedebug" then NS.Fading.ToggleDebug()
     NS.CopyText.debug = not NS.CopyText.debug
     Util.Print("copy debug=%s", tostring(NS.CopyText.debug))
   elseif msg:match("^copy") then
