@@ -2,7 +2,7 @@
 ## Title: Velocity Chat Frames
 ## Notes: Chat windows that stay out of the way. No hover reveal, short fade, short channel tags, level in sender names.
 ## Author: Kuro
-## Version: v2026.11.25.0014
+## Version: @project-version@
 ## SavedVariables: VelocityChatFramesDB
 ## OptionalDeps: LibStub, LibZoneBrightness
 ## X-Website: https://github.com/WoWAddons-Kuro/VelocityChatFrames
