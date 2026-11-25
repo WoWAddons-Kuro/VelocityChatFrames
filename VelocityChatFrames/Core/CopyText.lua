@@ -192,7 +192,9 @@ local function GetCopyWindow()
   box:SetAutoFocus(false)
   box:SetMaxLetters(0)   -- unlimited. The default cap silently DROPS a longer SetText (GetText() -> ""), which
                          -- is why long selections showed an empty box while short ones worked.
-  box:SetFontObject(ChatFontNormal)
+  -- Smaller than the chat font: this is a review pane, so more lines on screen beats legibility at
+  -- distance. Fall back to the chat font if the small one is missing on a client.
+  box:SetFontObject(ChatFontSmall or GameFontHighlightSmall or ChatFontNormal)
   box:SetWidth(scroll:GetWidth() > 0 and scroll:GetWidth() or 500)
   box:SetScript("OnEscapePressed", function() win:Hide() end)
   -- Report-only. This handler never writes to the box: the OnTextChanged for a SetText arrives AFTER the
