@@ -107,6 +107,8 @@ function Options.Create()
   local lines = Section("Lines")
   lines:Add(Slider(lines, "VelocityChatFramesOptFade", "LineFadeSeconds", 15, 0, 240, 1,
     function(v) if v <= 0 then return "Lines never fade" end return string.format("Lines fade %d s after they arrive", v) end), 44, -10)
+  lines:Add(Slider(lines, "VelocityChatFramesOptFadeDuration", "LineFadeDurationSeconds", 3, 0, 5, 0.1,
+    function(v) if v <= 0 then return "Fade-out is instant" end return string.format("Fade-out takes %.1f s", v) end), 44, -6)
   local hover = Check(lines, "HoverPausesFade", "Pointer over a window pauses fading", "While the pointer is over a chat window nothing fades; when it leaves, every line gets a fresh delay. The world behind still responds to hover. Greyed out if this client cannot pass pointer motion through a frame.")
   hover.Update = function(self) self:SetChecked(db().HoverPausesFade and true or false); self:SetEnabled(NS.Fading and NS.Fading.canPauseOnHover or false) end
   lines:Add(hover, 26, -10)

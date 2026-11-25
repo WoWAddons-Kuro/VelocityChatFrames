@@ -11,6 +11,7 @@ Settings.DEFAULTS = {
 
   -- 03_Behaviour
   LineFadeSeconds = 15,                      -- 0 = never fade
+  LineFadeDurationSeconds = 3,               -- how long the fade-out itself takes once a line is due (stock 3; 0 = instant)
   HoverPausesFade = true,                    -- pointer over a window: nothing fades; on leave, fresh delay
   OwnInputExtendsFade = true,                -- after a line you sent, hold lines longer
   OwnInputFadeSeconds = 30,                  -- how long (5..180)
