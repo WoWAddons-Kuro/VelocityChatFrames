@@ -190,20 +190,18 @@ local function GetCopyWindow()
   local box = CreateFrame("EditBox", "VelocityChatFramesCopyWindowEditBox", scroll)
   box:SetMultiLine(true)
   box:SetAutoFocus(false)
+  box:SetMaxLetters(0)   -- unlimited. The default cap silently DROPS a longer SetText (GetText() -> ""), which
+                         -- is why long selections showed an empty box while short ones worked.
   box:SetFontObject(ChatFontNormal)
   box:SetWidth(scroll:GetWidth() > 0 and scroll:GetWidth() or 500)
   box:SetScript("OnEscapePressed", function() win:Hide() end)
-  -- Read-only: restore the staged text if the box's content ever differs from it. Compare content rather
-  -- than trusting the userInput flag: a large SetText has been observed arriving as userInput=true on Era
-  -- and the re-SetText inside that event emptied the box (debug rows showed boxText=0 after 1416 chars).
+  -- Report-only. This handler never writes to the box: the OnTextChanged for a SetText arrives AFTER the
+  -- caller returns, so any "restore here" logic re-triggers itself without bound. The bounded Watchdog in
+  -- ShowCopyWindow is the only thing allowed to re-stage text.
   box:SetScript("OnTextChanged", function(self, userInput)
-    local want = self.vcfText or ""
-    local have = self:GetText() or ""
     if CopyText.debug then
-      Util.Print("copy: OnTextChanged userInput=%s have=%d want=%d", tostring(userInput), #have, #want)
+      Util.Print("copy: OnTextChanged userInput=%s have=%d want=%d", tostring(userInput), #(self:GetText() or ""), #(self.vcfText or ""))
     end
-    if have == want or self.vcfRestoring then return end
-    self.vcfRestoring = true; self:SetText(want); self.vcfRestoring = nil
   end)
   scroll:SetScrollChild(box)
   scroll:SetScript("OnSizeChanged", function(self, w) box:SetWidth(w) end)
@@ -281,14 +279,18 @@ local function ShowCopyWindow(frame, text)
     if win.vcfShowSerial ~= serial or not win:IsShown() then return end
     win.SelectAll()
   end)
-  -- Watchdog: the box has intermittently been found EMPTY shortly after SetText (debug rows: 1416 chars
-  -- staged, boxText=0, height collapsed). Cause not yet isolated, so until it is: re-check a few times and
-  -- re-stage the text if it is missing. Stops as soon as the content matches or the window has moved on.
+  -- Watchdog: the ONE writer that may re-stage the text after ShowCopyWindow. Exactly MAX_RETRIES tries at
+  -- RETRY_SECS, then gives up. (Root cause of the empty box was the EditBox default max-letters cap, fixed
+  -- at creation with SetMaxLetters(0); this remains as a bounded safety net for anything else that clears it.)
   local RETRY_SECS, MAX_RETRIES = 0.5, 3
   local function Watchdog(attempt)
     if win.vcfShowSerial ~= serial or not win:IsShown() then return end
     local have = win.box:GetText() or ""
     if have == text then return end
+    if attempt > MAX_RETRIES then
+      if CopyText.debug then Util.Print("copy: watchdog gave up after %d tries - box has %d chars, expected %d", MAX_RETRIES, #have, #text) end
+      return
+    end
     if CopyText.debug then
       Util.Print("copy: watchdog %d/%d - box has %d chars, expected %d; re-staging", attempt, MAX_RETRIES, #have, #text)
     end
@@ -296,7 +298,7 @@ local function ShowCopyWindow(frame, text)
     win.box:SetText(text)
     win.box:SetHeight(math.max(win.scroll:GetHeight() or 0, neededHeight))
     win.SelectAll()
-    if attempt < MAX_RETRIES then C_Timer.After(RETRY_SECS, function() Watchdog(attempt + 1) end) end
+    C_Timer.After(RETRY_SECS, function() Watchdog(attempt + 1) end)   -- attempt MAX+1 only reports and stops
   end
   C_Timer.After(RETRY_SECS, function() Watchdog(1) end)
   if CopyText.debug then
@@ -323,14 +325,42 @@ end
 -- Markup strip, link-first: a chat line nests |cff..|Hitem:..|h[Name]|h|r, so resolve links
 -- before colours; a colour code that survives is rendered live by the EditBox and, lacking its
 -- |r, bleeds into the following lines. Handles |cffRRGGBB, |cnNAME: and |cAARRGGBB forms.
+--
+-- Then the DANGLING-FRAGMENT pass. The selection anchor/cursor are byte offsets into the RAW line
+-- (markup included), so a drag that starts or ends mid-line can cut inside an escape: "|cff8", a
+-- "|H..." with no "|h", a bare "|h", or a lone "|". The complete-pattern pass above cannot match
+-- those, and a single malformed escape makes the EditBox reject the WHOLE string (SetText lands,
+-- GetText() returns "" - observed as the 1089-char empty box on Forever while 372 chars worked).
 local function StripMarkup(text)
   text = text:gsub("|H.-|h(.-)|h", "%1")
+  text = text:gsub("|K.-|k", "")                                   -- Battle.net protected names (Forever)
   text = text:gsub("|T.-|t", ""):gsub("|A.-|a", "")
   text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn[^:]-:", ""):gsub("|c%x%x%x%x%x%x", "")
   text = text:gsub("|r", "")
+  -- Dangling fragments left by a mid-escape cut:
+  text = text:gsub("|H[^|]*|h", "")                                -- "|Hlink|h" whose closing "|h" was cut off: drop link data, keep what follows
+  text = text:gsub("|H[^|]*$", "")                                 -- "|H..." running to end of string
+  text = text:gsub("|[HKTA][^|]*", "")                             -- any other open "|H/|K/|T/|A" with its payload but no terminator
+  text = text:gsub("|[hkta]", "")                                  -- bare terminators
+  text = text:gsub("|c%x*", "")                                    -- truncated colour open ("|c", "|cf", "|cff8...")
+  text = text:gsub("|cn[^:|]*", "")                                -- truncated named colour
+  text = text:gsub("|n", "\n")                                     -- newline escape -> real newline
+  -- Anything still introduced by "|" is unknown or malformed; a lone pipe is what poisons the box. Make it
+  -- literal ("||" renders as "|") so the user still sees the character and the string stays valid.
+  text = text:gsub("|([^|])", "||%1"):gsub("|$", "||")
   return text
 end
 CopyText.StripMarkup = StripMarkup
+
+-- Debug: list any "|" sequences that survived StripMarkup so a new escape form shows up in the log.
+local function ReportResidualEscapes(text)
+  if not CopyText.debug then return end
+  local seen, n = {}, 0
+  for seq in text:gmatch("|[^|]?[^|]?[^|]?") do
+    if not seen[seq] then seen[seq] = true; n = n + 1; if n <= 8 then Util.Print("copy: residual escape %q", seq) end end
+  end
+  if n > 8 then Util.Print("copy: ... %d distinct residual escapes", n) end
+end
 
 function OnMouseUpPre(frame, button)
   if button ~= "LeftButton" or not IsOn(frame) then return end
@@ -354,6 +384,7 @@ function OnMouseUpPre(frame, button)
     return
   end
   if CopyText.debug then Util.Print("copy: gathered raw %d -> stripped %d chars", rawLen, #text) end
+  ReportResidualEscapes(text)
   StageForClipboard(frame, text)
 end
 
