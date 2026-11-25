@@ -377,6 +377,16 @@ function Reveal.Init()
     if rec.frame.vcfWheelHooked then return end
     rec.frame.vcfWheelHooked = true
     rec.frame:HookScript("OnMouseWheel", OnWheel)
+    -- The tab too: at rest it is transparent and takes no clicks (SetTabInteractive), but wheel
+    -- delivery is independent of EnableMouse, so a wheel turn over the invisible tab strip can
+    -- reveal the dock just like one over the window body. Tabs have no stock OnMouseWheel.
+    if rec.tab and not rec.tab.vcfWheelHooked then
+      rec.tab.vcfWheelHooked = true
+      rec.tab:EnableMouseWheel(true)
+      local tabWheel = function() OnWheel(rec.frame) end
+      if rec.tab:GetScript("OnMouseWheel") then rec.tab:HookScript("OnMouseWheel", tabWheel)
+      else rec.tab:SetScript("OnMouseWheel", tabWheel) end
+    end
   end
   for _, rec in ipairs(Windows.All()) do hookWheel(rec) end
   Windows.OnNewRecord(function(rec) hookWheel(rec); if Settings.IsEnabled() then Reveal.ApplyChrome(rec) end end)
