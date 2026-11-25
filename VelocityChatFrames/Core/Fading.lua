@@ -50,7 +50,7 @@ function Fading.ApplyRest(rec)
   -- re-asserting here makes ours the last word on every ApplyRest, which already runs on login,
   -- entering world, setting changes and new windows.
   local duration = Settings.Get().LineFadeDurationSeconds or 3
-  if f.SetFadeDuration then f:SetFadeDuration(math.max(duration, 0.01)) end   -- 0 in the UI = effectively instant
+  Client.SetLineFadeDuration(f, math.max(duration, 0.01))   -- 0 in the UI = effectively instant
 end
 
 function Fading.ApplyAll()
@@ -110,16 +110,16 @@ local function OnLeave(frame)
   -- Nothing else: the visible lines keep the fresh delay from their last re-stamp and fade normally.
 end
 
--- Motion sensing without taking clicks: the frame must have motion enabled to get OnEnter/OnLeave,
--- and SetPropagateMouseMotion(true) lets the world beneath still see the pointer (hover cursor,
--- tooltips). Without that API the pause is not offered: enabling motion would block world hover,
+-- Motion sensing without taking clicks: how a frame gets OnEnter/OnLeave while the world beneath still
+-- sees the pointer is client-specific and lives in Client.SetHoverSensing / Client.CanSenseHover. If the
+-- client cannot do it the option is not offered: motion without pass-through would block world hover,
 -- which is the one thing this addon exists to prevent.
 Fading.canPauseOnHover = false
 
 local function WireHover(rec)
   local f = rec.frame
   if rec.isCombatLog or f.vcfHoverWired then return end
-  if not f.SetPropagateMouseMotion then return end
+  if not Client.CanSenseHover() then return end
   f.vcfHoverWired = true
   Fading.canPauseOnHover = true
   f:HookScript("OnEnter", OnEnter)
@@ -129,11 +129,11 @@ end
 
 function Fading.ApplyHoverSensing(rec)
   local f = rec.frame
-  if not f.SetPropagateMouseMotion then return end
+  if not Client.CanSenseHover() then return end
   local want = Settings.IsEnabled() and Settings.Get().HoverPausesFade and true or false
-  if f.SetMouseMotionEnabled then f:SetMouseMotionEnabled(want) end
-  f:SetPropagateMouseMotion(want)
-  if not want and VCF_HoverHeld[rec] then VCF_HoverHeld[rec] = nil; Fading.ApplyRest(rec) end
+  Client.SetHoverSensing(f, want)
+  -- Sensing turned off while hovered: stop the re-stamp ticker, same as OnLeave would.
+  if not want then OnLeave(f) end
 end
 
 -- Own input -----------------------------------------------------------------------------------

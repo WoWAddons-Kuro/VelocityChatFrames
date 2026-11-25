@@ -30,3 +30,19 @@ function impl.ScrollColumnButtons(chatFrameName)
   end
   return out
 end
+
+-- Era 1.15.x ships the same live ScrollingMessageFrame.lua (byte-identical, see 00_Overview), so the
+-- motion-propagation API is present too. Feature-detected in case a build drops it.
+function impl.CanSenseHover()
+  return ChatFrame1 ~= nil and ChatFrame1.SetPropagateMouseMotion ~= nil
+end
+
+function impl.SetHoverSensing(frame, on)
+  if frame.SetMouseMotionEnabled then frame:SetMouseMotionEnabled(on) end
+  if frame.SetPropagateMouseMotion then frame:SetPropagateMouseMotion(on) end
+end
+
+-- Era: ScrollingMessageFrameMixin:SetFadeDuration (ScrollingMessageFrame.lua 278).
+function impl.SetLineFadeDuration(frame, secs)
+  if frame.SetFadeDuration then frame:SetFadeDuration(secs) end
+end

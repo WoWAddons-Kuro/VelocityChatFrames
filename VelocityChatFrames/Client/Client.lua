@@ -13,4 +13,7 @@ Client.INTERFACE = {
   "TabRestAlpha",         -- (tab, isSelected) -> the stock no-mouse alpha for that tab
   "ScrollColumnButtons",  -- (chatFrameName) -> list of the window's scroll/minimize buttons (names differ per client)
   "WhisperScopeKey",      -- the set of characters that share a whisper journal: Era = realm, Forever = account
+  "CanSenseHover",        -- () -> true if a chat frame can get OnEnter/OnLeave while passing motion to the world
+  "SetHoverSensing",      -- (frame, on) -> apply/remove pass-through motion sensing on a chat frame
+  "SetLineFadeDuration",  -- (frame, secs) -> per-line fade-out duration, where the client exposes it
 }

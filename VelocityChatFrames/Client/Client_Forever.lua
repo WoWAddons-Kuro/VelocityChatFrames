@@ -34,3 +34,19 @@ function impl.ScrollColumnButtons(chatFrameName)
   end
   return out
 end
+
+-- Forever: ScrollingMessageFrame has SetPropagateMouseMotion / SetMouseMotionEnabled, so a window can
+-- see OnEnter/OnLeave while the world beneath still gets the pointer (hover cursor, tooltips).
+function impl.CanSenseHover()
+  return ChatFrame1 ~= nil and ChatFrame1.SetPropagateMouseMotion ~= nil
+end
+
+function impl.SetHoverSensing(frame, on)
+  if frame.SetMouseMotionEnabled then frame:SetMouseMotionEnabled(on) end
+  if frame.SetPropagateMouseMotion then frame:SetPropagateMouseMotion(on) end
+end
+
+-- Forever: ScrollingMessageFrameMixin:SetFadeDuration (ScrollingMessageFrame.lua 278).
+function impl.SetLineFadeDuration(frame, secs)
+  if frame.SetFadeDuration then frame:SetFadeDuration(secs) end
+end
