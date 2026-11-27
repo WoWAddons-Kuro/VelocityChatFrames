@@ -71,9 +71,13 @@ function CopyText.Begin(frame)
   HookTouch(frame)
   frame:SetTextCopyable(true)
   if NS.CopySelect then NS.CopySelect.Attach(frame) end   -- multi-screen anchor + edge scroll
-  -- Selection needs clicks; Phase 2 Rest turns them off, so force on while selecting.
+  -- Selection needs clicks AND motion; Phase 2 Rest turns clicks off, and Fading.ApplyHoverSensing turns
+  -- motion off whenever HoverPausesFade is off (the drag highlight is driven by mouse motion over the
+  -- frame, so without it mouse-down stores an anchor but nothing ever selects). Force both on while
+  -- selecting; End restores the saved motion state via vcfSelectionMotionBefore.
   frame:EnableMouse(true)
   if frame.SetMouseClickEnabled then frame:SetMouseClickEnabled(true) end
+  if frame.SetMouseMotionEnabled then frame:SetMouseMotionEnabled(true) end
   frame:SetFading(false)
   Touch()
   CancelTimer()
